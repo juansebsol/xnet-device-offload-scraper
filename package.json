@@ -1,0 +1,19 @@
+{
+  "name": "xnet-offload-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "scrape:once": "node src/runOnce.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.52.0",
+    "dotenv": "^17.2.0",
+    "playwright": "^1.54.1"
+  }
+}
