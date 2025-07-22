@@ -1,0 +1,73 @@
+-- ======================================================================
+-- XNET Offload Data schema RESET
+-- This script DROPS and recreates offload_daily & scrape_log + trigger.
+-- ======================================================================
+
+begin;
+
+-- Optional: set schema explicitly
+set search_path = public;
+
+-----------------------------------------------------------------------
+-- Drop existing objects (cascade handles triggers)
+-----------------------------------------------------------------------
+drop table if exists offload_daily cascade;
+drop table if exists scrape_log cascade;
+drop function if exists offload_daily_touch_updated() cascade;
+
+-----------------------------------------------------------------------
+-- Recreate offload_daily
+-----------------------------------------------------------------------
+create table offload_daily (
+  day date primary key,
+  gigabytes numeric(20,3) not null check (gigabytes >= 0),
+  updated_at timestamptz not null default now()
+);
+
+comment on table offload_daily is 'Daily network offload usage scraped from HUB portal.';
+comment on column offload_daily.day is 'Calendar date (UTC).';
+comment on column offload_daily.gigabytes is 'Usage in gigabytes for the day.';
+comment on column offload_daily.updated_at is 'Timestamp when gigabytes last changed.';
+
+-----------------------------------------------------------------------
+-- Recreate scrape_log
+-----------------------------------------------------------------------
+create table scrape_log (
+  id bigserial primary key,
+  scraped_at timestamptz not null default now(),
+  source_filename text,
+  rows_parsed int,
+  rows_upserted int,
+  rows_changed int,
+  success boolean not null default true,
+  error_text text
+);
+
+comment on table scrape_log is 'Audit trail of scraper runs.';
+comment on column scrape_log.rows_parsed is 'Number of data lines parsed from export.';
+comment on column scrape_log.rows_upserted is 'Rows written to offload_daily (insert + update).';
+comment on column scrape_log.rows_changed is 'Rows where gigabytes value changed on update.';
+comment on column scrape_log.error_text is 'Error message when success=false.';
+
+-----------------------------------------------------------------------
+-- Trigger: update updated_at only when gigabytes changes
+-----------------------------------------------------------------------
+create or replace function offload_daily_touch_updated()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.gigabytes is distinct from old.gigabytes then
+    new.updated_at = now();
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_offload_daily_touch_updated
+before update on offload_daily
+for each row
+execute function offload_daily_touch_updated();
+
+commit;
+
