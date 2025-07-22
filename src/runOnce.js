@@ -7,22 +7,29 @@ const { upsertDaily, logScrape } = require('./upsert');
   try {
     const { csvText, filename } = await scrapeCsv();
     const rows = parseOffloadCsv(csvText);
-    console.log(`Parsed ${rows.length} data rows.`);
-    const { upserted } = await upsertDaily(rows);
+    const { inserted, updated, upserted, totalParsed } = await upsertDaily(rows);
+
     await logScrape({
       filename,
-      rowsParsed: rows.length,
-      rowsUpserted: upserted,
+      totalParsed,
+      upserted,
+      inserted,
+      updated,
       success: true,
     });
-    console.log(`Scrape OK: parsed=${rows.length} upserted=${upserted}`);
+
+    console.log(
+      `Scrape OK: parsed=${totalParsed} inserted=${inserted} updated=${updated} (wrote=${upserted})`
+    );
   } catch (err) {
     console.error('Scrape FAILED:', err);
     try {
       await logScrape({
         filename: null,
-        rowsParsed: 0,
-        rowsUpserted: 0,
+        totalParsed: 0,
+        upserted: 0,
+        inserted: 0,
+        updated: 0,
         success: false,
         errorText: String(err?.message ?? err),
       });
