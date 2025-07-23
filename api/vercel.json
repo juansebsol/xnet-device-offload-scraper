@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x",
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "installCommand": "npm ci",
+  "buildCommand": "echo 'no build step'",
+  "outputDirectory": "."
+}
+
