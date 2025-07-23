@@ -106,8 +106,41 @@ Run once to set up the schema. This version is destructive and resets existing t
 | Action                | Command / Method         |
 |-----------------------|-------------------------|
 | Manual run (local)    | `npm run scrape:once`   |
+| Manual upload         | `node src/runUpload.js <file>` |
 | GitHub daily scrape   | via cron in Actions     |
 | Setup Supabase schema | paste SQL into editor   |
+
+---
+
+## 📤 Manual Upload
+
+### Run the Upload
+
+```bash
+node src/runUpload.js ./downloads/results.json
+```
+
+### What Happens
+
+1. **Script loads env vars** from `.env`
+2. **Reads the JSON/CSV/TXT file** (supports multiple formats)
+3. **Sends rows through `upsertDaily()`** which diffs against existing `offload_daily` rows by day
+4. **Inserts only missing days; updates changed values**
+5. **Logs a row into `scrape_log`** (so you have a full audit trail that this was a manual upload)
+
+### Supported File Formats
+
+- **JSON**: Array of `{day, gigabytes}` objects
+- **CSV/TXT**: Raw export from HUB portal (parsed via `parseOffloadCsv()`)
+
+### Example Output
+
+```yaml
+✅ Upload OK: parsed=178 inserted=103 updated=12 (wrote=115)
+```
+
+Numbers will vary depending on what's already in the DB.
+
 
 ---
 
