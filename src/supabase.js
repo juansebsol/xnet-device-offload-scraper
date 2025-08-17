@@ -7,7 +7,7 @@ if (!url || !key) {
   throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars');
 }
 
-const supabaseAdmin = createClient(url, key, { auth: { persistSession: false } });
+const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-module.exports = { supabaseAdmin };
+module.exports = { supabase };
 
