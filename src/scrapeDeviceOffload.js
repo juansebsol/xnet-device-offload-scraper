@@ -127,30 +127,11 @@ async function scrapeDeviceOffload(nasId) {
     await page1.locator('.hub-reporting-console-app-web-MuiInputBase-input.hub-reporting-console-app-web-MuiInput-input').fill(nasId);
     console.log('✅ NAS ID filled successfully');
 
-    // This mystery click + ArrowDown spam is preserved from your working code
-    console.log('🎯 Performing mystery click...');
-    await page1
-      .locator(
-        '.hub-reporting-console-app-web-MuiBox-root.hub-reporting-console-app-web-sd-prod24 > div:nth-child(2) > div'
-      )
-      .click()
-      .catch(() => {}); // tolerate failures
-    console.log('✅ Mystery click completed');
-
-    // ArrowDown presses (kept as loop)
-    console.log(`⬇️ Pressing ArrowDown ${ARROWDOWN_PRESSES} times...`);
-    for (let i = 0; i < ARROWDOWN_PRESSES; i++) {
-      try {
-        await page1.getByText('loading...ContractSInbound').press('ArrowDown', { timeout: 1000 });
-        console.log(`✅ ArrowDown ${i + 1}/${ARROWDOWN_PRESSES}`);
-      } catch {
-        // fallback: send a raw keypress to the page
-        try {
-          await page1.keyboard.press('ArrowDown');
-          console.log(`✅ ArrowDown ${i + 1}/${ARROWDOWN_PRESSES} (fallback)`);
-        } catch {}
-      }
-    }
+    // Click Update button after filling NAS ID
+    console.log('🔄 Clicking Update button...');
+    await page1.locator('div').filter({ hasText: /^Auto-updateUpdate$/ }).click();
+    await page1.getByRole('button', { name: 'Update' }).click();
+    console.log('✅ Update button clicked successfully');
 
     // Wait for iframe
     console.log('🖼️ Waiting for iframe...');
@@ -160,9 +141,9 @@ async function scrapeDeviceOffload(nasId) {
     if (!frame) throw new Error('❌ iframe not ready');
     console.log('✅ iframe ready');
 
-    // Open export menu
+    // Open export menu - using correct button names from your working code
     console.log('📤 Opening export menu...');
-    await frame.getByRole('button', { name: 'NASID Daily - Tile' }).click();
+    await frame.getByRole('button', { name: 'Inbound Daily NASID Summary' }).click();
     console.log('✅ Export button clicked successfully');
     
     console.log('⬇️ Clicking Download data...');
