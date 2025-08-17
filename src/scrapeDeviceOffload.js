@@ -70,9 +70,16 @@ async function scrapeDeviceOffload(nasId) {
     const page1 = await page1Promise;
     console.log('✅ HUB popup opened successfully');
 
-    // 📈 Navigate to NASID Daily (NEW PATH)
+    // 📈 Navigate to Data Usage first, then NASID Daily
+    console.log('📊 Clicking Data Usage...');
+    await page1.getByRole('button', { name: 'Data Usage' }).click();
+    console.log('✅ Data Usage clicked successfully');
+    
+    // Wait a moment for the Data Usage section to load
+    await page1.waitForTimeout(1000);
+    
     console.log('📊 Clicking NASID Daily...');
-    await page1.getByRole('button', { name: 'NASID Daily' }).click();
+    await page1.getByRole('link', { name: 'NASID Daily' }).click();
     console.log('✅ NASID Daily clicked successfully');
     
     // Wait for the NASID input section to load
@@ -80,9 +87,9 @@ async function scrapeDeviceOffload(nasId) {
     await page1.waitForSelector('.sd-multi-auto-complete-pseudo-input', { timeout: 10000 });
     console.log('✅ NASID input section loaded');
 
-    // Click on the NASID input field
+    // Click on the NASID input field - use first one to avoid multiple matches
     console.log('🎯 Clicking NASID input field...');
-    await page1.locator('.sd-multi-auto-complete-pseudo-input').click();
+    await page1.locator('.sd-multi-auto-complete-pseudo-input').first().click();
     console.log('✅ NASID input field clicked');
 
     // Wait for the dropdown/input to appear
@@ -90,10 +97,25 @@ async function scrapeDeviceOffload(nasId) {
     await page1.waitForSelector('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1', { timeout: 10000 });
     console.log('✅ NASID dropdown appeared');
 
-    // Click on the dropdown option
+    // Click on the dropdown option - use a more specific selector to avoid multiple matches
     console.log('📋 Clicking NASID dropdown option...');
-    await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1').click();
-    console.log('✅ NASID dropdown option clicked');
+    
+    // Wait for the NASID dropdown to be more specific
+    await page1.waitForTimeout(500);
+    
+    // Try to find the NASID dropdown specifically by looking for elements that contain NASID-related text
+    const nasidDropdownOption = await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1')
+      .filter({ hasText: /NASID|nasid/i })
+      .first();
+    
+    if (await nasidDropdownOption.count() > 0) {
+      await nasidDropdownOption.click();
+      console.log('✅ NASID dropdown option clicked (filtered)');
+    } else {
+      // Fallback: click the first dropdown option if no NASID-specific one found
+      await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1').first().click();
+      console.log('✅ NASID dropdown option clicked (fallback to first)');
+    }
 
     // Wait for the input field to appear and fill in the NASID
     console.log('✏️ Waiting for NASID text input...');
