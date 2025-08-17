@@ -68,6 +68,25 @@ create table device_offload_scrape_log (
 );
 ```
 
+#### `tracked_devices`
+Controls which devices get automatically scraped daily:
+
+```sql
+create table tracked_devices (
+  id bigserial primary key,
+  nas_id text not null unique,
+  added_to_tracked_at timestamptz not null default now(),
+  last_scraped timestamptz,
+  is_active boolean not null default true,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  
+  -- Foreign key to devices table
+  foreign key (nas_id) references devices(nas_id) on delete cascade
+);
+```
+
 ## 🔧 Setup
 
 ### 1. Database Setup
@@ -130,6 +149,12 @@ GITHUB_REPO=your-username/xnet-device-offload-scraper
 - **Automatic device creation** when scraping new NAS IDs
 - **Foreign key integrity** with cascade deletes
 
+### **Daily Scrape List Management**
+- **`tracked_devices` table** controls which devices get scraped daily
+- **Separate from device registry** - clean separation of concerns
+- **Add/Remove from daily list** without affecting device data
+- **Manual scraping** still works for any device (tracked or not)
+
 ### **Smart Update Logic**
 - **Floating-point precision handling** prevents unnecessary updates
 - **Change detection** only updates when data actually differs
@@ -148,6 +173,44 @@ Content-Type: application/json
 }
 ```
 
+**Example URLs:**
+```
+# Trigger scraping for a device
+https://your-domain.vercel.app/api/trigger-scrape
+```
+
+**cURL Example:**
+```bash
+curl -X POST https://your-domain.vercel.app/api/trigger-scrape \
+  -H "Content-Type: application/json" \
+  -d '{"nas_id": "bcb92300ae0c", "force_refresh": false}'
+```
+
+**JavaScript/Fetch Example:**
+```javascript
+fetch('https://your-domain.vercel.app/api/trigger-scrape', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    nas_id: 'bcb92300ae0c',
+    force_refresh: false
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "nas_id": "bcb92300ae0c",
+  "message": "Scraping triggered successfully",
+  "workflow_url": "https://github.com/...",
+  "timestamp": "2025-01-16T10:30:00Z"
+}
+```
+
 **What it does:**
 - Triggers the scraper for a specific device
 - Downloads device offload data from HUB portal
@@ -158,6 +221,149 @@ Content-Type: application/json
 - On-demand scraping for specific devices
 - Integration with external systems
 - Manual data refresh
+
+### **🔵 Endpoint 2: Query Device Data**
+```bash
+GET /api/device-offload?nas_id=bcb92300ae0c
+```
+
+**Query Parameters:**
+- **`nas_id`** (required): Device identifier (e.g., `bcb92300ae0c`)
+- **`start`** (optional): Start date in YYYY-MM-DD format
+- **`end`** (optional): End date in YYYY-MM-DD format
+- **`days`** (optional): Number of days to look back from today
+
+**Example URLs:**
+```
+# All data for a device
+https://your-domain.vercel.app/api/device-offload?nas_id=bcb92300ae0c
+
+# Last 7 days
+https://your-domain.vercel.app/api/device-offload?nas_id=bcb92300ae0c&days=7
+
+# Specific date range
+https://your-domain.vercel.app/api/device-offload?nas_id=bcb92300ae0c&start=2025-08-01&end=2025-08-31
+```
+
+**Response Format:**
+```json
+{
+  "nas_id": "bcb92300ae0c",
+  "range": { "start": "2025-08-01", "end": "2025-08-31", "days": 7 },
+  "count": 31,
+  "summary": {
+    "total_gbs": 15.234,
+    "total_sessions": 1250,
+    "total_users": 890,
+    "total_rejects": 45,
+    "average_daily_gbs": 0.491,
+    "days_analyzed": 31
+  },
+  "data": [
+    {
+      "transaction_date": "2025-08-31",
+      "nas_id": "bcb92300ae0c",
+      "device_name": "Device bcb92300ae0c",
+      "total_sessions": 45,
+      "count_of_users": 32,
+      "rejects": 2,
+      "total_gbs": 0.234,
+      "created_at": "2025-08-31T00:00:00Z",
+      "updated_at": "2025-08-31T00:00:00Z"
+    }
+  ]
+}
+```
+
+### **🟢 Endpoint 3: Device Management (Daily Scrape List)**
+```bash
+# List devices on daily scrape list
+GET /api/manage-devices
+
+# Add device to daily scrape list
+POST /api/manage-devices
+
+# Remove device from daily scrape list
+DELETE /api/manage-devices?nas_id=bcb92300ae0c
+```
+
+**Example URLs:**
+```
+# List devices on daily scrape list
+https://your-domain.vercel.app/api/manage-devices
+
+# Remove specific device from daily scrape list
+https://your-domain.vercel.app/api/manage-devices?nas_id=bcb92300ae0c
+```
+
+**cURL Examples:**
+
+**List Devices:**
+```bash
+curl https://your-domain.vercel.app/api/manage-devices
+```
+
+**Add Device:**
+```bash
+curl -X POST https://your-domain.vercel.app/api/manage-devices \
+  -H "Content-Type: application/json" \
+  -d '{"nas_id": "newdevice123", "device_name": "New Device", "description": "Device description"}'
+```
+
+**Remove Device from Daily Scrape List:**
+```bash
+curl -X DELETE "https://your-domain.vercel.app/api/manage-devices?nas_id=bcb92300ae0c"
+```
+
+**JavaScript/Fetch Examples:**
+
+**List Devices:**
+```javascript
+fetch('https://your-domain.vercel.app/api/manage-devices')
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+**Add Device to Daily Scrape List:**
+```javascript
+fetch('https://your-domain.vercel.app/api/manage-devices', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    nas_id: 'newdevice123',
+    device_name: 'New Device',
+    description: 'Device description',
+    notes: 'Added for daily monitoring'
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+**Response Format (List Devices):**
+```json
+{
+  "count": 2,
+  "devices": [
+    {
+      "id": 1,
+      "nas_id": "bcb92300ae0c",
+      "device_name": "Device bcb92300ae0c",
+      "description": null,
+      "is_active": true,
+      "created_at": "2025-01-16T10:30:00Z",
+      "updated_at": "2025-01-16T10:30:00Z",
+      "summary": {
+        "total_sessions": 1250,
+        "total_users": 890,
+        "total_rejects": 45,
+        "total_gbs": 15.234
+      },
+      "record_count": 31
+    }
+  ]
+}
+```
 
 ### **🔵 Endpoint 2: Query Database**
 ```bash
@@ -316,6 +522,21 @@ npm run trigger:github
 2. **Navigation Errors**: Check if HUB portal structure changed
 3. **Download Issues**: Multiple fallback methods included
 4. **Database Errors**: Verify Supabase credentials and table structure
+
+### **API Error Troubleshooting**
+1. **500 Internal Server Error**: 
+   - Check Vercel environment variables
+   - Verify Supabase connection
+   - Check if V2 database tables exist
+   - Review Vercel function logs
+
+2. **400 Bad Request**: 
+   - Ensure `nas_id` parameter is provided
+   - Check parameter format (no spaces, correct characters)
+
+3. **404 Not Found**: 
+   - Verify API endpoint URL
+   - Check if device exists in database
 
 ### **Debug Mode**
 ```javascript

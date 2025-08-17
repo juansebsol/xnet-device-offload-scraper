@@ -37,6 +37,14 @@ This project has been **completely refactored** to focus exclusively on **device
 - `total_sessions`, `count_of_users`, `rejects`, `total_gbs` - Aggregated metrics
 - **Unique constraint**: `(transaction_date, device_id)` prevents duplicates
 
+#### `tracked_devices` (Daily Scrape List)
+- `id` - Primary key
+- `nas_id` - Device identifier (must exist in devices table)
+- `added_to_tracked_at` - When added to daily scrape list
+- `last_scraped` - Last automatic scrape time
+- `is_active` - Whether device is currently tracked
+- `notes` - Optional tracking notes
+
 #### `device_offload_scrape_log`
 - Audit trail for all scraping operations
 
