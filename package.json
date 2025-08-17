@@ -5,7 +5,18 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "scrape:once": "node src/runOnce.js"
+    "scrape:device": "node -r dotenv/config src/runDeviceScrape.js",
+    "scrape:scheduled": "node -r dotenv/config src/scheduledDeviceScrape.js",
+    "parse:device": "node src/parseDeviceCsv.js",
+    "upsert:device": "node -r dotenv/config src/upsertDeviceOffload.js",
+    "trigger:github": "node scripts/trigger-github-action.js",
+    "device:add": "node -r dotenv/config src/scheduledDeviceScrape.js add",
+    "device:remove": "node -r dotenv/config src/scheduledDeviceScrape.js remove",
+    "device:list": "node -r dotenv/config src/scheduledDeviceScrape.js list",
+    "test:local": "node -r dotenv/config test-local-scraping.js",
+    "test:scrape": "node -r dotenv/config test-local-scraping.js scrape",
+    "test:query": "node -r dotenv/config test-local-scraping.js query",
+    "test:scheduled": "node -r dotenv/config test-local-scraping.js scheduled"
   },
   "keywords": [],
   "author": "",

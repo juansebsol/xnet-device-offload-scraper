@@ -1,0 +1,118 @@
+name: Device Offload Scraper
+
+on:
+  # Manual trigger with inputs
+  workflow_dispatch:
+    inputs:
+      nas_id:
+        description: 'NAS ID to scrape'
+        required: true
+        type: string
+        default: 'bcb92300ae0c'
+      force_refresh:
+        description: 'Force refresh existing data'
+        required: false
+        type: boolean
+        default: false
+  
+  # Repository dispatch (can be triggered by external API calls)
+  repository_dispatch:
+    types: [device-offload-scrape]
+
+jobs:
+  scrape-device-offload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🚀 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 🔧 Install dependencies
+      run: npm ci
+      
+    - name: 🎯 Set up environment
+      run: |
+        echo "OKTA_START_URL=${{ secrets.OKTA_START_URL }}" >> $GITHUB_ENV
+        echo "OKTA_EMAIL=${{ secrets.OKTA_EMAIL }}" >> $GITHUB_ENV
+        echo "OKTA_PASSWORD=${{ secrets.OKTA_PASSWORD }}" >> $GITHUB_ENV
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
+        echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> $GITHUB_ENV
+        
+    - name: 🎭 Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+      
+    - name: 🔍 Determine NAS ID
+      id: nas-id
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "nas_id=${{ github.event.inputs.nas_id }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          echo "nas_id=${{ github.event.client_payload.nas_id }}" >> $GITHUB_OUTPUT
+        else
+          echo "nas_id=bcb92300ae0c" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: 🚀 Run device offload scraper
+      run: |
+        echo "🎯 Scraping device offload data for NAS ID: ${{ steps.nas-id.outputs.nas_id }}"
+        node src/scrapeDeviceOffload.js "${{ steps.nas-id.outputs.nas_id }}"
+        
+    - name: 📊 Parse and validate CSV
+      id: parse-csv
+      run: |
+        echo "📋 Parsing downloaded CSV file..."
+        LATEST_FILE=$(ls -t downloads/*.txt downloads/*.csv 2>/dev/null | head -1)
+        if [ -z "$LATEST_FILE" ]; then
+          echo "❌ No downloaded file found"
+          exit 1
+        fi
+        
+        echo "📁 Processing file: $LATEST_FILE"
+        PARSE_RESULT=$(node src/parseDeviceCsv.js "$LATEST_FILE")
+        echo "parse_result<<EOF" >> $GITHUB_OUTPUT
+        echo "$PARSE_RESULT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: 💾 Upload data to database
+      run: |
+        echo "💾 Upserting data to database..."
+        LATEST_FILE=$(ls -t downloads/*.txt downloads/*.csv 2>/dev/null | head -1)
+        node src/upsertDeviceOffload.js "${{ steps.nas-id.outputs.nas_id }}" "$LATEST_FILE"
+        
+    - name: 📋 Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: device-offload-data-${{ steps.nas-id.outputs.nas_id }}-${{ github.run_id }}
+        path: |
+          downloads/
+        retention-days: 7
+        
+    - name: 📊 Summary
+      run: |
+        echo "🎉 Device offload scraping completed successfully!"
+        echo "🎯 NAS ID: ${{ steps.nas-id.outputs.nas_id }}"
+        echo "📁 Artifacts uploaded"
+        echo "⏰ Completed at: $(date)"
+        
+  # Optional: Add a job to notify external systems
+  notify-completion:
+    needs: scrape-device-offload
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 📢 Notify completion
+      run: |
+        if [ "${{ needs.scrape-device-offload.result }}" = "success" ]; then
+          echo "✅ Scraping completed successfully"
+          # Add webhook notifications here if needed
+        else
+          echo "❌ Scraping failed"
+          # Add failure notifications here if needed
+        fi

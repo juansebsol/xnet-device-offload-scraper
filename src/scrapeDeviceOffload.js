@@ -1,10 +1,9 @@
-// src/scrape.js
-// Minimal-change port of Sebastian's known-working one-file scraper
-// - env vars instead of hard-coded creds
-// - arrowDown spam preserved (looped)
-// - response sniff preserved
-// - robust post-click wait loop (poll until fileUrl or timeout)
-// - returns csvText + filename
+// src/scrapeDeviceOffload.js
+// Device-specific offload scraper for Single Digits HUB portal
+// - Navigates to NASID Daily instead of Data Usage Timeline
+// - Accepts NASID as parameter
+// - Parses device-specific CSV format
+// - Returns device offload data
 
 const fs = require('fs');
 const path = require('path');
@@ -19,7 +18,11 @@ const PRE_CLICK_DELAY_MS = 1000;       // give UI time to bind download
 const POST_CLICK_POLL_MS = 100;        // poll interval
 const POST_CLICK_MAX_MS = 10000;       // total wait after click (10s)
 
-async function scrapeCsv() {
+async function scrapeDeviceOffload(nasId) {
+  if (!nasId) {
+    throw new Error('NAS ID is required');
+  }
+
   const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -29,12 +32,13 @@ async function scrapeCsv() {
 
   let fileUrl = '';
   let filename = '';
-  let capturedResponse = null; // keep ref to reuse if we want
+  let capturedResponse = null;
 
   try {
-    console.log('🚀 Starting scraper...');
+    console.log('🚀 Starting device offload scraper...');
+    console.log(`🎯 Target NAS ID: ${nasId}`);
     
-    // 🧑‍💻 Login sequence
+    // 🧑‍💻 Login sequence (same as original)
     console.log('📱 Navigating to OKTA start page...');
     await page.goto(process.env.OKTA_START_URL, { waitUntil: 'domcontentloaded' });
     console.log('✅ OKTA page loaded successfully');
@@ -66,16 +70,42 @@ async function scrapeCsv() {
     const page1 = await page1Promise;
     console.log('✅ HUB popup opened successfully');
 
-    // 📈 Navigate to usage
-    console.log('📊 Clicking Data Usage...');
-    await page1.getByRole('button', { name: 'Data Usage' }).click();
-    console.log('✅ Data Usage clicked successfully');
+    // 📈 Navigate to NASID Daily (NEW PATH)
+    console.log('📊 Clicking NASID Daily...');
+    await page1.getByRole('button', { name: 'NASID Daily' }).click();
+    console.log('✅ NASID Daily clicked successfully');
     
-    console.log('📈 Clicking Data Usage Timeline...');
-    await page1.getByRole('link', { name: 'Data Usage Timeline' }).click();
-    console.log('✅ Data Usage Timeline clicked successfully');
+    // Wait for the NASID input section to load
+    console.log('🔍 Waiting for NASID input section...');
+    await page1.waitForSelector('.sd-multi-auto-complete-pseudo-input', { timeout: 10000 });
+    console.log('✅ NASID input section loaded');
 
-    // This mystery click + ArrowDown spam is in your working code; preserve it.
+    // Click on the NASID input field
+    console.log('🎯 Clicking NASID input field...');
+    await page1.locator('.sd-multi-auto-complete-pseudo-input').click();
+    console.log('✅ NASID input field clicked');
+
+    // Wait for the dropdown/input to appear
+    console.log('⏳ Waiting for NASID dropdown...');
+    await page1.waitForSelector('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1', { timeout: 10000 });
+    console.log('✅ NASID dropdown appeared');
+
+    // Click on the dropdown option
+    console.log('📋 Clicking NASID dropdown option...');
+    await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1').click();
+    console.log('✅ NASID dropdown option clicked');
+
+    // Wait for the input field to appear and fill in the NASID
+    console.log('✏️ Waiting for NASID text input...');
+    await page1.waitForSelector('.hub-reporting-console-app-web-MuiInputBase-input.hub-reporting-console-app-web-MuiInput-input', { timeout: 10000 });
+    console.log('✅ NASID text input appeared');
+
+    // Fill in the NASID
+    console.log(`🔢 Filling in NAS ID: ${nasId}`);
+    await page1.locator('.hub-reporting-console-app-web-MuiInputBase-input.hub-reporting-console-app-web-MuiInput-input').fill(nasId);
+    console.log('✅ NAS ID filled successfully');
+
+    // This mystery click + ArrowDown spam is preserved from your working code
     console.log('🎯 Performing mystery click...');
     await page1
       .locator(
@@ -110,7 +140,7 @@ async function scrapeCsv() {
 
     // Open export menu
     console.log('📤 Opening export menu...');
-    await frame.getByRole('button', { name: 'Data Usage Timeline - Tile' }).click();
+    await frame.getByRole('button', { name: 'NASID Daily - Tile' }).click();
     console.log('✅ Export button clicked successfully');
     
     console.log('⬇️ Clicking Download data...');
@@ -130,7 +160,7 @@ async function scrapeCsv() {
         ) {
           fileUrl = response.url();
           const match = disposition.match(/filename="(.+?)"/);
-          filename = match?.[1] || 'download.csv';
+          filename = match?.[1] || 'device_offload.csv';
           capturedResponse = response;
           console.log('✅ Correct file detected:', filename);
         }
@@ -253,7 +283,7 @@ async function scrapeCsv() {
     console.log('✅ File saved successfully:', fullPath);
     console.log('📊 Preview:\n', csvText.substring(0, 500));
 
-    return { csvText, filename, fullPath };
+    return { csvText, filename, fullPath, nasId };
   } finally {
     await context.close();
     await browser.close();
@@ -263,12 +293,23 @@ async function scrapeCsv() {
 // convenience direct-run
 if (require.main === module) {
   require('dotenv').config();
-  scrapeCsv()
-    .then(() => process.exit(0))
+  const nasId = process.argv[2];
+  if (!nasId) {
+    console.error('❌ Usage: node src/scrapeDeviceOffload.js <NAS_ID>');
+    process.exit(1);
+  }
+  
+  scrapeDeviceOffload(nasId)
+    .then((result) => {
+      console.log('✅ Scraping completed successfully!');
+      console.log(`📁 File: ${result.filename}`);
+      console.log(`🎯 NAS ID: ${result.nasId}`);
+      process.exit(0);
+    })
     .catch((e) => {
-      console.error(e);
+      console.error('❌ Scraping failed:', e);
       process.exit(1);
     });
 }
 
-module.exports = { scrapeCsv };
+module.exports = { scrapeDeviceOffload };

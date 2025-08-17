@@ -1,0 +1,129 @@
+name: Scheduled Device Offload Scraping
+
+on:
+  # Run daily at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      devices:
+        description: 'Comma-separated list of NAS IDs to scrape (leave empty for all configured devices)'
+        required: false
+        type: string
+        default: ''
+      force_refresh:
+        description: 'Force refresh existing data'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  scrape-devices:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🚀 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 🔧 Install dependencies
+      run: npm ci
+      
+    - name: 🎯 Set up environment
+      run: |
+        echo "OKTA_START_URL=${{ secrets.OKTA_START_URL }}" >> $GITHUB_ENV
+        echo "OKTA_EMAIL=${{ secrets.OKTA_EMAIL }}" >> $GITHUB_ENV
+        echo "OKTA_PASSWORD=${{ secrets.OKTA_PASSWORD }}" >> $GITHUB_ENV
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
+        echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> $GITHUB_ENV
+        
+    - name: 🎭 Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+      
+    - name: 🔍 Determine devices to scrape
+      id: devices
+      run: |
+        if [ -n "${{ github.event.inputs.devices }}" ]; then
+          # Use manually specified devices
+          echo "devices=${{ github.event.inputs.devices }}" >> $GITHUB_OUTPUT
+          echo "mode=manual"
+        else
+          # Use all configured devices
+          echo "devices=all" >> $GITHUB_OUTPUT
+          echo "mode=scheduled"
+        fi
+        echo "mode=${{ github.event.inputs.devices != '' && 'manual' || 'scheduled' }}" >> $GITHUB_OUTPUT
+        
+    - name: 📋 Show device list
+      run: |
+        echo "📱 Devices to scrape: ${{ steps.devices.outputs.devices }}"
+        echo "🔄 Mode: ${{ steps.devices.outputs.mode }}"
+        echo ""
+        if [ "${{ steps.devices.outputs.devices }}" = "all" ]; then
+          echo "📋 Current configured devices:"
+          npm run device:list
+        else
+          echo "🎯 Manual devices: ${{ steps.devices.outputs.devices }}"
+        fi
+        
+    - name: 🚀 Run scheduled device scraping
+      run: |
+        if [ "${{ steps.devices.outputs.devices }}" = "all" ]; then
+          echo "🔄 Running scheduled scraping for all configured devices..."
+          npm run scrape:scheduled all
+        else
+          echo "🎯 Running manual scraping for specified devices..."
+          # Split comma-separated devices and scrape each one
+          IFS=',' read -ra DEVICES <<< "${{ steps.devices.outputs.devices }}"
+          for device in "${DEVICES[@]}"; do
+            device=$(echo "$device" | xargs)  # trim whitespace
+            if [ -n "$device" ]; then
+              echo "📱 Scraping device: $device"
+              npm run scrape:device "$device"
+              echo "⏳ Waiting 10 seconds before next device..."
+              sleep 10
+            fi
+          done
+        fi
+        
+    - name: 📋 Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: scheduled-device-scraping-${{ github.run_id }}
+        path: |
+          downloads/
+        retention-days: 7
+        
+    - name: 📊 Summary
+      run: |
+        echo "🎉 Scheduled device offload scraping completed!"
+        echo "🔄 Mode: ${{ steps.devices.outputs.mode }}"
+        echo "🎯 Devices: ${{ steps.devices.outputs.devices }}"
+        echo "📁 Artifacts uploaded"
+        echo "⏰ Completed at: $(date)"
+        
+  # Optional: Add a job to notify external systems
+  notify-completion:
+    needs: scrape-devices
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 📢 Notify completion
+      run: |
+        if [ "${{ needs.scrape-devices.result }}" = "success" ]; then
+          echo "✅ Scheduled scraping completed successfully"
+          # Add webhook notifications here if needed
+          # Example: curl -X POST $WEBHOOK_URL -d '{"status":"success"}'
+        else
+          echo "❌ Scheduled scraping failed"
+          # Add failure notifications here if needed
+          # Example: curl -X POST $WEBHOOK_URL -d '{"status":"failed"}'
+        fi
