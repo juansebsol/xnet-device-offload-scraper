@@ -149,6 +149,14 @@ async function scrapeDeviceOffload(nasId) {
     console.log('⬇️ Clicking Download data...');
     await frame.getByRole('menuitem', { name: 'Download data' }).click();
     console.log('✅ Download data clicked successfully');
+    
+    // Select CSV format
+    console.log('📊 Selecting CSV format...');
+    await frame.getByRole('combobox', { name: 'Format combobox' }).locator('div').nth(1).click();
+    console.log('✅ Format combobox clicked');
+    
+    await frame.getByRole('option', { name: 'CSV' }).click();
+    console.log('✅ CSV format selected');
 
     // Capture attachment response
     page1.on('response', async (response) => {
