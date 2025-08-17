@@ -1,19 +1,47 @@
 -- ======================================================================
--- XNET Device Offload Data Schema - SAFE MIGRATION
--- This script safely creates the device_offload_daily table and related objects
--- Can be run on existing projects without breaking anything
+-- XNET Device Offload Data Schema V2 - SAFE MIGRATION
+-- This script creates the new parent/child structure WITHOUT modifying existing data
+-- Can be run on existing projects without any risk of data loss
 -- ======================================================================
 
 -- Optional: set schema explicitly
 set search_path = public;
 
 -----------------------------------------------------------------------
--- Create device_offload_daily table (safe - won't overwrite existing)
+-- Step 1: Create devices table (parent table) - SAFE
+-----------------------------------------------------------------------
+create table if not exists devices (
+  id bigserial primary key,
+  nas_id text not null unique,
+  device_name text,
+  description text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Add comments
+comment on table devices is 'Master device registry - parent table for device offload data.';
+comment on column devices.nas_id is 'Network Access Server ID (unique device identifier).';
+comment on column devices.device_name is 'Human-readable device name (optional).';
+comment on column devices.description is 'Device description or notes (optional).';
+comment on column devices.is_active is 'Whether the device is currently active and being monitored.';
+
+-- Create index on nas_id for fast lookups
+create index if not exists idx_devices_nas_id on devices(nas_id);
+
+-- Grant permissions to service role
+grant all on table devices to service_role;
+grant all on table devices to anon, authenticated;
+
+-----------------------------------------------------------------------
+-- Step 2: Create device_offload_daily table (child table) - SAFE
 -----------------------------------------------------------------------
 create table if not exists device_offload_daily (
   id bigserial primary key,
   transaction_date date not null,
   nas_id text not null,
+  device_id bigint,
   total_sessions integer not null,
   count_of_users integer not null,
   rejects integer not null,
@@ -22,71 +50,32 @@ create table if not exists device_offload_daily (
   updated_at timestamptz not null default now()
 );
 
--- Add unique constraint if it doesn't exist
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint 
-    where conname = 'device_offload_daily_transaction_date_nas_id_key'
-  ) then
-    alter table device_offload_daily 
-    add constraint device_offload_daily_transaction_date_nas_id_key 
-    unique(transaction_date, nas_id);
-  end if;
-end $$;
+-- Add foreign key constraint
+alter table device_offload_daily 
+add constraint device_offload_daily_device_id_fkey 
+foreign key (device_id) references devices(id) on delete cascade;
 
--- Add comments if they don't exist
+-- Add unique constraint on (transaction_date, device_id) for aggregation
+alter table device_offload_daily 
+add constraint device_offload_daily_transaction_date_device_id_key 
+unique(transaction_date, device_id);
+
+-- Add comments
 comment on table device_offload_daily is 'Device-specific daily network offload usage scraped from HUB portal.';
 comment on column device_offload_daily.transaction_date is 'Calendar date of the transaction (UTC).';
 comment on column device_offload_daily.nas_id is 'Network Access Server ID (device identifier).';
+comment on column device_offload_daily.device_id is 'Foreign key reference to devices table.';
 comment on column device_offload_daily.total_sessions is 'Total number of sessions for the device on this date.';
 comment on column device_offload_daily.count_of_users is 'Number of unique users for the device on this date.';
 comment on column device_offload_daily.rejects is 'Number of rejected attempts for the device on this date.';
 comment on column device_offload_daily.total_gbs is 'Total gigabytes offloaded for the device on this date.';
 
------------------------------------------------------------------------
--- Create indexes (safe - won't overwrite existing)
------------------------------------------------------------------------
-create index if not exists idx_device_offload_date_nas on device_offload_daily(transaction_date, nas_id);
-create index if not exists idx_device_offload_nas_date on device_offload_daily(nas_id, transaction_date);
-create index if not exists idx_device_offload_date on device_offload_daily(transaction_date);
+-- Grant permissions to service role
+grant all on table device_offload_daily to service_role;
+grant all on table device_offload_daily to anon, authenticated;
 
 -----------------------------------------------------------------------
--- Create trigger function (safe - only if doesn't exist)
------------------------------------------------------------------------
-create function if not exists device_offload_daily_touch_updated()
-returns trigger
-language plpgsql
-as $$
-begin
-  if new.total_sessions is distinct from old.total_sessions or
-     new.count_of_users is distinct from old.count_of_users or
-     new.rejects is distinct from old.rejects or
-     new.total_gbs is distinct from old.total_gbs then
-    new.updated_at = now();
-  end if;
-  return new;
-end;
-$$;
-
------------------------------------------------------------------------
--- Create trigger (safe - only if doesn't exist)
------------------------------------------------------------------------
-do $$
-begin
-  if not exists (
-    select 1 from pg_trigger 
-    where tgname = 'trg_device_offload_daily_touch_updated'
-  ) then
-    create trigger trg_device_offload_daily_touch_updated
-    before update on device_offload_daily
-    for each row
-    execute function device_offload_daily_touch_updated();
-  end if;
-end $$;
-
------------------------------------------------------------------------
--- Create device_offload_scrape_log table (safe - won't overwrite existing)
+-- Step 3: Create device_offload_scrape_log table - SAFE
 -----------------------------------------------------------------------
 create table if not exists device_offload_scrape_log (
   id bigserial primary key,
@@ -100,14 +89,85 @@ create table if not exists device_offload_scrape_log (
   error_text text
 );
 
--- Add comments if they don't exist
+-- Add comments
 comment on table device_offload_scrape_log is 'Audit trail of device-specific scraper runs.';
 comment on column device_offload_scrape_log.nas_id is 'NAS ID that was scraped in this run.';
 comment on column device_offload_scrape_log.rows_parsed is 'Number of data lines parsed from export.';
 comment on column device_offload_scrape_log.rows_upserted is 'Rows written to device_offload_daily (insert + update).';
 comment on column device_offload_scrape_log.rows_changed is 'Rows where values changed on update.';
 
+-- Grant permissions to service role
+grant all on table device_offload_scrape_log to service_role;
+grant all on table device_offload_scrape_log to anon, authenticated;
+
 -----------------------------------------------------------------------
--- Migration complete
+-- Step 4: Create indexes (SAFE - won't replace existing ones)
 -----------------------------------------------------------------------
-select 'Device offload schema migration completed successfully!' as status;
+-- Create optimized indexes for the new structure
+create index if not exists idx_device_offload_device_date on device_offload_daily(device_id, transaction_date);
+create index if not exists idx_device_offload_date_device on device_offload_daily(transaction_date, device_id);
+create index if not exists idx_device_offload_date on device_offload_daily(transaction_date);
+create index if not exists idx_device_offload_nas_id on device_offload_daily(nas_id);
+create index if not exists idx_device_offload_scrape_log_nas_id on device_offload_scrape_log(nas_id);
+create index if not exists idx_device_offload_scrape_log_date on device_offload_scrape_log(scraped_at);
+
+-- Grant permissions on sequences (for auto-increment IDs)
+grant usage, select on all sequences in schema public to service_role;
+grant usage, select on all sequences in schema public to anon, authenticated;
+
+-----------------------------------------------------------------------
+-- Step 5: Create device management functions (SAFE)
+-----------------------------------------------------------------------
+-- Function to get or create device
+create or replace function get_or_create_device(p_nas_id text, p_device_name text default null)
+returns bigint
+language plpgsql
+as $$
+declare
+  v_device_id bigint;
+begin
+  -- Try to get existing device
+  select id into v_device_id from devices where nas_id = p_nas_id;
+  
+  if v_device_id is null then
+    -- Create new device
+    insert into devices (nas_id, device_name) 
+    values (p_nas_id, p_device_name)
+    returning id into v_device_id;
+  end if;
+  
+  return v_device_id;
+end;
+$$;
+
+-- Function to aggregate daily data
+create or replace function aggregate_device_daily_data(
+  p_device_id bigint,
+  p_transaction_date date
+)
+returns table(
+  total_sessions bigint,
+  count_of_users bigint,
+  rejects bigint,
+  total_gbs numeric
+)
+language sql
+as $$
+  select 
+    sum(total_sessions)::bigint as total_sessions,
+    sum(count_of_users)::bigint as count_of_users,
+    sum(rejects)::bigint as rejects,
+    sum(total_gbs) as total_gbs
+  from device_offload_daily 
+  where device_id = p_device_id 
+    and transaction_date = p_transaction_date;
+$$;
+
+-----------------------------------------------------------------------
+-- Migration complete - FRESH START
+-----------------------------------------------------------------------
+select 'Device offload V2 schema migration completed successfully!' as status;
+select 'Created devices table (parent) and device_offload_daily table (child)' as details;
+select 'Created device_offload_scrape_log table for audit trail' as details;
+select 'All tables created with proper parent/child relationships' as structure;
+select 'Ready for first scrape with new V2 structure!' as next_step;

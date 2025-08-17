@@ -24,6 +24,7 @@ async function runDeviceScrape(nasId) {
     console.log('\n📊 Step 2: Parsing CSV data...');
     const parseResult = parseDeviceCsv(scrapeResult.csvText);
     console.log(`✅ Parsed ${parseResult.validRows} valid rows from CSV`);
+    console.log(`🔄 Aggregated into ${parseResult.aggregatedRows} unique date/device records`);
 
     if (parseResult.errors.length > 0) {
       console.warn(`⚠️ ${parseResult.errors.length} parsing errors encountered`);

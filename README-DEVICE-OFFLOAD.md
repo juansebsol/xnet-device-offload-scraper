@@ -11,18 +11,34 @@ The device offload scraper provides **two main endpoints** and **scheduled scrap
 3. **🔄 Scheduled Action**: Automatically scrapes configured devices every day
 4. **⚙️ Device Management**: Add/remove devices from the scraping list
 
-## 🗄️ Database Schema
+## 🗄️ V2 Database Schema
 
-### New Tables
+### New Parent/Child Structure
 
-#### `device_offload_daily`
-Stores daily offload data for individual devices:
+#### `devices` (Parent Table)
+Master device registry:
+
+```sql
+create table devices (
+  id bigserial primary key,
+  nas_id text not null unique,
+  device_name text,
+  description text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+#### `device_offload_daily` (Child Table)
+Stores daily offload data for individual devices with parent relationship:
 
 ```sql
 create table device_offload_daily (
   id bigserial primary key,
   transaction_date date not null,
   nas_id text not null,
+  device_id bigint references devices(id) on delete cascade,
   total_sessions integer not null,
   count_of_users integer not null,
   rejects integer not null,
@@ -30,8 +46,8 @@ create table device_offload_daily (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   
-  -- Composite unique constraint to prevent duplicates
-  unique(transaction_date, nas_id)
+  -- New unique constraint for aggregation
+  unique(transaction_date, device_id)
 );
 ```
 
@@ -74,6 +90,14 @@ You have two options for setting up the database schema:
 **Choose Option A if you have existing data you want to keep.**
 **Choose Option B only if you're starting completely fresh.**
 
+### V2 Migration Scripts
+
+The new migration scripts include:
+- **Parent/Child table structure** with `devices` and `device_offload_daily`
+- **Proper permissions** for Supabase service role
+- **Data aggregation support** with unique constraints
+- **Foreign key relationships** for data integrity
+
 ### 2. Environment Variables
 
 Ensure these environment variables are set:
@@ -92,6 +116,24 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 GITHUB_TOKEN=your-github-personal-access-token
 GITHUB_REPO=your-username/xnet-device-offload-scraper
 ```
+
+## 🚀 **V2 Key Features**
+
+### **Data Aggregation**
+- **Multiple records per date** are automatically summed up
+- **No duplicate dates** - unique constraint on `(transaction_date, device_id)`
+- **Historical preservation** - never overwrites, always inserts new
+
+### **Parent/Child Relationships**
+- **`devices` table** manages device registry
+- **`device_offload_daily` table** stores aggregated daily data
+- **Automatic device creation** when scraping new NAS IDs
+- **Foreign key integrity** with cascade deletes
+
+### **Smart Update Logic**
+- **Floating-point precision handling** prevents unnecessary updates
+- **Change detection** only updates when data actually differs
+- **Efficient database operations** with proper indexing
 
 ## 🎯 **Two Main Endpoints**
 
@@ -230,6 +272,31 @@ After parsing, each record contains:
   rejects: 1,
   total_gbs: 0
 }
+```
+
+## 🧪 **Testing & Development**
+
+### **Test Scripts**
+```bash
+# Run full test suite
+npm run test:local
+
+# Test specific functionality
+npm run test:scrape bcb92300ae0c    # Test scraping
+npm run test:query bcb92300ae0c 7   # Test database queries
+npm run test:scheduled              # Test scheduled scraping
+```
+
+### **Development Commands**
+```bash
+# Parse CSV files
+npm run parse:device
+
+# Test database operations
+npm run upsert:device
+
+# Trigger GitHub workflows
+npm run trigger:github
 ```
 
 ## 🔄 **Workflow Summary**

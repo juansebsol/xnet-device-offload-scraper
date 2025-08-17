@@ -23,10 +23,26 @@ module.exports = async (req, res) => {
 
   let startDate = null;
   let endDate = null;
+  
+  // First get the device ID
+  const { data: device, error: deviceError } = await supabase
+    .from('devices')
+    .select('id, nas_id, device_name')
+    .eq('nas_id', nas_id)
+    .single();
+    
+  if (deviceError) {
+    console.error('Device not found:', deviceError);
+    return res.status(404).json({ error: 'Device not found' });
+  }
+  
   let query = supabase
     .from('device_offload_daily')
-    .select('*')
-    .eq('nas_id', nas_id)
+    .select(`
+      *,
+      devices!inner(nas_id, device_name)
+    `)
+    .eq('device_id', device.id)
     .order('transaction_date', { ascending: false });
 
   if (days) {
@@ -69,7 +85,8 @@ module.exports = async (req, res) => {
 
   const out = (data || []).map((r) => ({
     transaction_date: r.transaction_date,
-    nas_id: r.nas_id,
+    nas_id: r.devices?.nas_id || r.nas_id, // Use joined data or fallback
+    device_name: r.devices?.device_name,
     total_sessions: r.total_sessions,
     count_of_users: r.count_of_users,
     rejects: r.rejects,

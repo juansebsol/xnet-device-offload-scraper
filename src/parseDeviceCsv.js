@@ -78,11 +78,16 @@ function parseDeviceCsv(csvText) {
     }
   }
 
+  // Aggregate data by date and NAS ID
+  const aggregatedData = aggregateDataByDateAndNasId(data);
+
   return {
-    data,
+    data: aggregatedData,
+    rawData: data, // Keep raw data for debugging
     errors,
     totalRows: lines.length - 1,
     validRows: data.length,
+    aggregatedRows: aggregatedData.length,
     errorRows: errors.length
   };
 }
@@ -168,6 +173,43 @@ function formatGigabytes(gbs) {
   } else {
     return `${(gbs * 1000000).toFixed(3)} KB`;
   }
+}
+
+/**
+ * Aggregate data by transaction date and NAS ID
+ * Sums up multiple records for the same date/device combination
+ * @param {Array} rawData - Array of parsed device offload records
+ * @returns {Array} Aggregated data with one record per date per device
+ */
+function aggregateDataByDateAndNasId(rawData) {
+  const aggregated = new Map();
+  
+  for (const record of rawData) {
+    const key = `${record.transaction_date}_${record.nas_id}`;
+    
+    if (aggregated.has(key)) {
+      // Add to existing aggregated record
+      const existing = aggregated.get(key);
+      existing.total_sessions += record.total_sessions;
+      existing.count_of_users += record.count_of_users;
+      existing.rejects += record.rejects;
+      existing.total_gbs += record.total_gbs;
+    } else {
+      // Create new aggregated record
+      aggregated.set(key, {
+        transaction_date: record.transaction_date,
+        nas_id: record.nas_id,
+        total_sessions: record.total_sessions,
+        count_of_users: record.count_of_users,
+        rejects: record.rejects,
+        total_gbs: record.total_gbs
+      });
+    }
+  }
+  
+  // Convert Map to Array and sort by date (newest first)
+  return Array.from(aggregated.values())
+    .sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date));
 }
 
 // convenience direct-run for testing

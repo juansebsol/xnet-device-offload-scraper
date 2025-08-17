@@ -1,7 +1,68 @@
-begin;
-  drop table if exists public.device_offload_daily cascade;
-  drop table if exists public.device_offload_scrape_log cascade;
-  drop function if exists public.device_offload_daily_touch_updated() cascade;
-commit;
+-- ======================================================================
+-- SUPABASE NUCLEAR OPTION - DESTROY EVERYTHING
+-- This script will completely nuke your Supabase database
+-- WARNING: This will delete ALL tables, functions, triggers, etc. - use with extreme caution!
+-- ======================================================================
 
--- Paste supa-sql-migrate.txt contents below if running in one batch
+-- Drop ALL tables in the public schema
+do $$
+declare
+    r record;
+begin
+    -- Drop all tables
+    for r in select tablename from pg_tables where schemaname = 'public'
+    loop
+        execute 'drop table if exists public.' || quote_ident(r.tablename) || ' cascade';
+    end loop;
+    
+    -- Drop all views
+    for r in select viewname from pg_views where schemaname = 'public'
+    loop
+        execute 'drop view if exists public.' || quote_ident(r.viewname) || ' cascade';
+    end loop;
+    
+    -- Drop all functions
+    for r in select proname from pg_proc p join pg_namespace n on p.pronamespace = n.oid where n.nspname = 'public'
+    loop
+        execute 'drop function if exists public.' || quote_ident(r.proname) || ' cascade';
+    end loop;
+    
+    -- Drop all triggers
+    for r in select tgname from pg_trigger t join pg_class c on t.tgrelid = c.oid join pg_namespace n on c.relnamespace = n.oid where n.nspname = 'public'
+    loop
+        execute 'drop trigger if exists ' || quote_ident(r.tgname) || ' on all tables cascade';
+    end loop;
+    
+    -- Drop all sequences
+    for r in select sequence_name from information_schema.sequences where sequence_schema = 'public'
+    loop
+        execute 'drop sequence if exists public.' || quote_ident(r.sequence_name) || ' cascade';
+    end loop;
+    
+    -- Drop all types
+    for r in select typname from pg_type t join pg_namespace n on t.typnamespace = n.oid where n.nspname = 'public'
+    loop
+        execute 'drop type if exists public.' || quote_ident(r.typname) || ' cascade';
+    end loop;
+    
+    -- Drop all domains
+    for r in select domain_name from information_schema.domains where domain_schema = 'public'
+    loop
+        execute 'drop domain if exists public.' || quote_ident(r.domain_name) || ' cascade';
+    end loop;
+    
+    -- Skip schema dropping to avoid permission issues with Supabase system schemas
+    -- Just focus on dropping user-created objects in the public schema
+end $$;
+
+-- Reset the public schema to be empty but usable
+drop schema if exists public cascade;
+create schema public;
+
+-- Grant default permissions
+grant usage on schema public to postgres, anon, authenticated, service_role;
+
+-- ======================================================================
+-- DATABASE COMPLETELY NUKED - READY FOR FRESH START
+-- To recreate the schema, run the contents of supa-sql-migrate-v2.txt
+-- ======================================================================

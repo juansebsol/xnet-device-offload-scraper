@@ -1,115 +1,188 @@
 // api/manage-devices.js
-// GET /api/manage-devices - List configured devices
-// POST /api/manage-devices - Add a device to scraping list
-// DELETE /api/manage-devices - Remove a device from scraping list
+// Device management API for the new parent/child structure
+// GET /api/manage-devices - List all devices
+// POST /api/manage-devices - Create new device
+// PUT /api/manage-devices/:id - Update device
+// DELETE /api/manage-devices/:id - Delete device
 
-const { 
-  DEVICES_TO_SCRAPE, 
-  DEVICE_CONFIGS,
-  addDeviceToScrapeList, 
-  removeDeviceFromScrapeList 
-} = require('../src/scheduledDeviceScrape');
+const { supabase } = require('./_supabase');
 
 module.exports = async (req, res) => {
   // Basic CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
     switch (req.method) {
       case 'GET':
-        // List all configured devices
-        const deviceList = DEVICES_TO_SCRAPE.map(nasId => ({
-          nas_id: nasId,
-          ...DEVICE_CONFIGS[nasId]
-        }));
-
-        res.status(200).json({
-          success: true,
-          count: deviceList.length,
-          devices: deviceList,
-          timestamp: new Date().toISOString()
-        });
+        await handleGetDevices(req, res);
         break;
-
       case 'POST':
-        // Add a device to the scraping list
-        const { nas_id, name, priority, scrape_frequency } = req.body;
-
-        if (!nas_id) {
-          return res.status(400).json({
-            error: 'nas_id is required',
-            example: { nas_id: 'bcb92300ae0c', name: 'Device Name', priority: 'high' }
-          });
-        }
-
-        const config = {};
-        if (name) config.name = name;
-        if (priority) config.priority = priority;
-        if (scrape_frequency) config.scrape_frequency = scrape_frequency;
-
-        const added = addDeviceToScrapeList(nas_id, config);
-
-        if (added) {
-          res.status(200).json({
-            success: true,
-            message: `Device ${nas_id} added to scraping list`,
-            nas_id,
-            config,
-            total_devices: DEVICES_TO_SCRAPE.length,
-            timestamp: new Date().toISOString()
-          });
-        } else {
-          res.status(409).json({
-            success: false,
-            error: `Device ${nas_id} is already in the scraping list`,
-            nas_id
-          });
-        }
+        await handleCreateDevice(req, res);
         break;
-
+      case 'PUT':
+        await handleUpdateDevice(req, res);
+        break;
       case 'DELETE':
-        // Remove a device from the scraping list
-        const { nas_id: delete_nas_id } = req.body;
-
-        if (!delete_nas_id) {
-          return res.status(400).json({
-            error: 'nas_id is required in request body',
-            example: { nas_id: 'bcb92300ae0c' }
-          });
-        }
-
-        const removed = removeDeviceFromScrapeList(delete_nas_id);
-
-        if (removed) {
-          res.status(200).json({
-            success: true,
-            message: `Device ${delete_nas_id} removed from scraping list`,
-            nas_id: delete_nas_id,
-            total_devices: DEVICES_TO_SCRAPE.length,
-            timestamp: new Date().toISOString()
-          });
-        } else {
-          res.status(404).json({
-            success: false,
-            error: `Device ${delete_nas_id} not found in scraping list`,
-            nas_id: delete_nas_id
-          });
-        }
+        await handleDeleteDevice(req, res);
         break;
-
       default:
         res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (error) {
-    console.error('❌ Error in manage-devices:', error);
-    
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    console.error('API Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+async function handleGetDevices(req, res) {
+  const { data: devices, error } = await supabase
+    .from('devices')
+    .select(`
+      *,
+      device_offload_daily(count)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Database error:', error);
+    return res.status(500).json({ error: 'Database error' });
+  }
+
+  // Add summary stats for each device
+  const devicesWithStats = await Promise.all(
+    devices.map(async (device) => {
+      const { data: stats } = await supabase
+        .from('device_offload_daily')
+        .select('total_sessions, count_of_users, rejects, total_gbs')
+        .eq('device_id', device.id);
+
+      const summary = stats.reduce((acc, record) => ({
+        total_sessions: acc.total_sessions + record.total_sessions,
+        total_users: acc.total_users + record.count_of_users,
+        total_rejects: acc.total_rejects + record.rejects,
+        total_gbs: acc.total_gbs + parseFloat(record.total_gbs)
+      }), { total_sessions: 0, total_users: 0, total_rejects: 0, total_gbs: 0 });
+
+      return {
+        ...device,
+        summary,
+        record_count: stats.length
+      };
+    })
+  );
+
+  res.status(200).json({
+    count: devicesWithStats.length,
+    devices: devicesWithStats
+  });
+}
+
+async function handleCreateDevice(req, res) {
+  const { nas_id, device_name, description } = req.body;
+
+  if (!nas_id) {
+    return res.status(400).json({ error: 'nas_id is required' });
+  }
+
+  // Check if device already exists
+  const { data: existing } = await supabase
+    .from('devices')
+    .select('id')
+    .eq('nas_id', nas_id)
+    .single();
+
+  if (existing) {
+    return res.status(409).json({ error: 'Device with this NAS ID already exists' });
+  }
+
+  const { data: device, error } = await supabase
+    .from('devices')
+    .insert({
+      nas_id,
+      device_name: device_name || `Device ${nas_id}`,
+      description,
+      is_active: true
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Create error:', error);
+    return res.status(500).json({ error: 'Failed to create device' });
+  }
+
+  res.status(201).json({
+    message: 'Device created successfully',
+    device
+  });
+}
+
+async function handleUpdateDevice(req, res) {
+  const { id } = req.query;
+  const { device_name, description, is_active } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Device ID is required' });
+  }
+
+  const { data: device, error } = await supabase
+    .from('devices')
+    .update({
+      device_name,
+      description,
+      is_active,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Update error:', error);
+    return res.status(500).json({ error: 'Failed to update device' });
+  }
+
+  res.status(200).json({
+    message: 'Device updated successfully',
+    device
+  });
+}
+
+async function handleDeleteDevice(req, res) {
+  const { id } = req.query;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Device ID is required' });
+  }
+
+  // Check if device has any offload data
+  const { data: offloadData } = await supabase
+    .from('device_offload_daily')
+    .select('id')
+    .eq('device_id', id)
+    .limit(1);
+
+  if (offloadData && offloadData.length > 0) {
+    return res.status(400).json({ 
+      error: 'Cannot delete device with existing offload data. Delete offload data first.' 
+    });
+  }
+
+  const { error } = await supabase
+    .from('devices')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Delete error:', error);
+    return res.status(500).json({ error: 'Failed to delete device' });
+  }
+
+  res.status(200).json({
+    message: 'Device deleted successfully'
+  });
+}

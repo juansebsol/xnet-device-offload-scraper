@@ -7,6 +7,46 @@
 const { supabase } = require('./supabase');
 
 /**
+ * Get or create a device record
+ * @param {string} nasId - The NAS ID
+ * @returns {number} The device ID
+ */
+async function getOrCreateDevice(nasId) {
+  // First try to get existing device
+  const { data: existingDevice, error: selectError } = await supabase
+    .from('devices')
+    .select('id')
+    .eq('nas_id', nasId)
+    .single();
+
+  if (selectError && selectError.code !== 'PGRST116') {
+    throw new Error(`Database select error: ${selectError.message}`);
+  }
+
+  if (existingDevice) {
+    return existingDevice.id;
+  }
+
+  // Device doesn't exist, create it
+  const { data: newDevice, error: insertError } = await supabase
+    .from('devices')
+    .insert({
+      nas_id: nasId,
+      device_name: `Device ${nasId}`,
+      is_active: true
+    })
+    .select('id')
+    .single();
+
+  if (insertError) {
+    throw new Error(`Failed to create device: ${insertError.message}`);
+  }
+
+  console.log(`✅ Created new device record for NAS ID: ${nasId}`);
+  return newDevice.id;
+}
+
+/**
  * Upsert device offload data into the database
  * @param {Array} deviceData - Array of parsed device offload records
  * @param {string} nasId - The NAS ID being processed
@@ -81,69 +121,77 @@ async function upsertDeviceOffload(deviceData, nasId, sourceFilename) {
 async function upsertSingleRecord(record) {
   const { transaction_date, nas_id, total_sessions, count_of_users, rejects, total_gbs } = record;
 
-  // Check if record already exists
-  const { data: existing, error: selectError } = await supabase
-    .from('device_offload_daily')
-    .select('id, total_sessions, count_of_users, rejects, total_gbs')
-    .eq('transaction_date', transaction_date)
-    .eq('nas_id', nas_id)
-    .single();
+  try {
+    // First, ensure the device exists in the devices table
+    const deviceId = await getOrCreateDevice(nas_id);
+    
+    // Check if record already exists for this device and date
+    const { data: existing, error: selectError } = await supabase
+      .from('device_offload_daily')
+      .select('id, total_sessions, count_of_users, rejects, total_gbs')
+      .eq('transaction_date', transaction_date)
+      .eq('device_id', deviceId)
+      .single();
 
-  if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows returned
-    throw new Error(`Database select error: ${selectError.message}`);
-  }
+    if (selectError && selectError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      throw new Error(`Database select error: ${selectError.message}`);
+    }
 
-  if (existing) {
-    // Record exists - check if we need to update
-    const hasChanges = 
-      existing.total_sessions !== total_sessions ||
-      existing.count_of_users !== count_of_users ||
-      existing.rejects !== rejects ||
-      existing.total_gbs !== total_gbs;
+    if (existing) {
+      // Record exists - check if we need to update
+      const hasChanges = 
+        existing.total_sessions !== total_sessions ||
+        existing.count_of_users !== count_of_users ||
+        existing.rejects !== rejects ||
+        Math.abs(existing.total_gbs - total_gbs) > 0.0000001; // Use small epsilon for floating-point comparison
 
-    if (hasChanges) {
-      // Update existing record
-      const { error: updateError } = await supabase
+      if (hasChanges) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('device_offload_daily')
+          .update({
+            total_sessions,
+            count_of_users,
+            rejects,
+            total_gbs,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id);
+
+        if (updateError) {
+          throw new Error(`Database update error: ${updateError.message}`);
+        }
+
+        console.log(`🔄 Updated record for ${transaction_date} (NAS: ${nas_id})`);
+        return { upserted: true, changed: true };
+      } else {
+        // No changes needed
+        console.log(`⏭️ No changes for ${transaction_date} (NAS: ${nas_id})`);
+        return { upserted: false, changed: false };
+      }
+    } else {
+      // Record doesn't exist - insert new record
+      const { error: insertError } = await supabase
         .from('device_offload_daily')
-        .update({
+        .insert({
+          transaction_date,
+          nas_id, // Keep for backward compatibility
+          device_id: deviceId,
           total_sessions,
           count_of_users,
           rejects,
-          total_gbs,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existing.id);
+          total_gbs
+        });
 
-      if (updateError) {
-        throw new Error(`Database update error: ${updateError.message}`);
+      if (insertError) {
+        throw new Error(`Database insert error: ${insertError.message}`);
       }
 
-      console.log(`🔄 Updated record for ${transaction_date} (NAS: ${nas_id})`);
-      return { upserted: true, changed: true };
-    } else {
-      // No changes needed
-      console.log(`⏭️ No changes for ${transaction_date} (NAS: ${nas_id})`);
-      return { upserted: false, changed: false };
+      console.log(`✅ Inserted new record for ${transaction_date} (NAS: ${nas_id})`);
+      return { upserted: true, changed: false };
     }
-  } else {
-    // Record doesn't exist - insert new record
-    const { error: insertError } = await supabase
-      .from('device_offload_daily')
-      .insert({
-        transaction_date,
-        nas_id,
-        total_sessions,
-        count_of_users,
-        rejects,
-        total_gbs
-      });
-
-    if (insertError) {
-      throw new Error(`Database insert error: ${insertError.message}`);
-    }
-
-    console.log(`✅ Inserted new record for ${transaction_date} (NAS: ${nas_id})`);
-    return { upserted: true, changed: false };
+  } catch (error) {
+    throw new Error(`Failed to upsert record for ${transaction_date} (NAS: ${nas_id}): ${error.message}`);
   }
 }
 
