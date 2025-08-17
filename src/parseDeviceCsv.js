@@ -13,9 +13,9 @@ function parseDeviceCsv(csvText) {
     throw new Error('CSV must have at least a header and one data row');
   }
 
-  // Parse header
+  // Parse header - skip empty first column
   const headerLine = lines[0];
-  const headers = headerLine.split(',').map(h => h.trim());
+  const headers = headerLine.split(',').map(h => h.trim()).filter(h => h !== '');
   
   // Validate expected headers
   const expectedHeaders = [
@@ -87,12 +87,13 @@ function parseDeviceCsv(csvText) {
   };
 }
 
-// Helper function to parse CSV row (handles quoted fields)
+// Helper function to parse CSV row (handles quoted fields and skips empty first column)
 function parseCsvRow(line) {
   const result = {};
   let current = '';
   let inQuotes = false;
   let fieldIndex = 0;
+  let skipFirstColumn = true; // Skip the empty first column
   const headers = [
     'Transaction Date',
     'NAS-ID', 
@@ -109,6 +110,12 @@ function parseCsvRow(line) {
       inQuotes = !inQuotes;
     } else if (char === ',' && !inQuotes) {
       // End of field
+      if (skipFirstColumn) {
+        skipFirstColumn = false; // Skip the first empty column
+        current = '';
+        continue;
+      }
+      
       if (headers[fieldIndex]) {
         result[headers[fieldIndex]] = current.trim();
       }
