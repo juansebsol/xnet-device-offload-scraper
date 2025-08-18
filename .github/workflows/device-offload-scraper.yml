@@ -83,7 +83,45 @@ jobs:
       run: |
         echo "💾 Upserting data to database..."
         LATEST_FILE=$(ls -t downloads/*.txt downloads/*.csv 2>/dev/null | head -1)
-        node src/upsertDeviceOffload.js "${{ steps.nas-id.outputs.nas_id }}" "$LATEST_FILE"
+        
+        if [ -z "$LATEST_FILE" ]; then
+          echo "❌ No downloaded file found for upsert"
+          exit 1
+        fi
+        
+        echo "📁 Processing file: $LATEST_FILE"
+        
+        # Parse the CSV and get the data
+        echo "📊 Parsing CSV for upsert..."
+        PARSE_RESULT=$(node src/parseDeviceCsv.js "$LATEST_FILE")
+        
+        # Call upsert with the correct arguments: (deviceData, nasId, sourceFilename)
+        # We need to pass the parsed data, not just the filename
+        echo "🔄 Calling upsert with parsed data..."
+        node -e "
+          const { parseDeviceCsv } = require('./src/parseDeviceCsv.js');
+          const { upsertDeviceOffload } = require('./src/upsertDeviceOffload.js');
+          const fs = require('fs');
+          
+          const fileContent = fs.readFileSync('$LATEST_FILE', 'utf8');
+          const parseResult = parseDeviceCsv(fileContent);
+          
+          if (parseResult.data && parseResult.data.length > 0) {
+            console.log('📊 Parsed data ready for upsert');
+            upsertDeviceOffload(parseResult.data, '${{ steps.nas-id.outputs.nas_id }}', '$LATEST_FILE')
+              .then(result => {
+                console.log('✅ Upsert completed:', result);
+                process.exit(0);
+              })
+              .catch(error => {
+                console.error('❌ Upsert failed:', error);
+                process.exit(1);
+              });
+          } else {
+            console.error('❌ No valid data parsed from CSV');
+            process.exit(1);
+          }
+        "
         
     - name: 📋 Upload artifacts
       uses: actions/upload-artifact@v4
