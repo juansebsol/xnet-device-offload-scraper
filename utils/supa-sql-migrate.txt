@@ -145,6 +145,9 @@ create index if not exists idx_tracked_devices_active on tracked_devices(is_acti
 grant all on table tracked_devices to service_role;
 grant all on table tracked_devices to anon, authenticated;
 
+-- Grant permissions on the sequence for auto-incrementing IDs
+grant usage, select on sequence tracked_devices_id_seq to service_role, anon, authenticated;
+
 -- Add foreign key constraint to ensure tracked devices exist in devices table
 alter table tracked_devices 
 add constraint tracked_devices_nas_id_fkey 

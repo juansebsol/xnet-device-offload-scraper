@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Device to Daily Scrape List</title>
+</head>
+<body>
+    <h2>Add Device to Daily Scrape List</h2>
+    <form id="deviceForm">
+        <p>NAS ID: <input type="text" id="nas_id" placeholder="bcb92300ae0c" required></p>
+        <p>Device Name: <input type="text" id="device_name" placeholder="Office Device"></p>
+        <p>Description: <input type="text" id="description" placeholder="Device description"></p>
+        <p>Notes: <input type="text" id="notes" placeholder="Tracking notes"></p>
+        <button type="submit">Add to Daily Scrape List</button>
+    </form>
+    
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('deviceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                nas_id: document.getElementById('nas_id').value,
+                device_name: document.getElementById('device_name').value,
+                description: document.getElementById('description').value,
+                notes: document.getElementById('notes').value
+            };
+            
+            try {
+                const response = await fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
