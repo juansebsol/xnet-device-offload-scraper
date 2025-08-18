@@ -3,7 +3,7 @@
 // No file downloads - processes CSV in memory and uploads directly to Supabase
 
 const { chromium } = require('playwright');
-const { supabase } = require('../supabase');
+const { supabase } = require('./supabase');
 const { parseDeviceCsv } = require('./parseDeviceCsv');
 const { upsertDeviceOffload } = require('./upsertDeviceOffload');
 
