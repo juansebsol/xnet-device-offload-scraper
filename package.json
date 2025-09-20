@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "scrape:device": "node -r dotenv/config src/runDeviceScrape.js",
+    "scrape:device:date": "node -r dotenv/config src/runDeviceScrapDate.js",
     "scrape:scheduled": "node -r dotenv/config src/scheduledDeviceScrape.js",
     "parse:device": "node src/parseDeviceCsv.js",
     "upsert:device": "node -r dotenv/config src/upsertDeviceOffload.js",

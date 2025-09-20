@@ -1,0 +1,200 @@
+name: Device Offload Scraper with Date Range
+
+on:
+  # Manual trigger with date range inputs
+  workflow_dispatch:
+    inputs:
+      nas_id:
+        description: 'NAS ID to scrape'
+        required: true
+        type: string
+        default: '94:2a:6f:c6:3b:ac'
+      start_date:
+        description: 'Start date (YYYY-MM-DD)'
+        required: true
+        type: string
+        default: '2025-07-01'
+      end_date:
+        description: 'End date (YYYY-MM-DD)'
+        required: true
+        type: string
+        default: '2025-07-30'
+      force_refresh:
+        description: 'Force refresh existing data'
+        required: false
+        type: boolean
+        default: false
+  
+  # Repository dispatch (can be triggered by external API calls)
+  repository_dispatch:
+    types: [device-offload-scrape-date]
+
+jobs:
+  scrape-device-offload-date:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🚀 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 🔧 Install dependencies
+      run: npm ci
+      
+    - name: 🎯 Set up environment
+      run: |
+        echo "OKTA_START_URL=${{ secrets.OKTA_START_URL }}" >> $GITHUB_ENV
+        echo "OKTA_EMAIL=${{ secrets.OKTA_EMAIL }}" >> $GITHUB_ENV
+        echo "OKTA_PASSWORD=${{ secrets.OKTA_PASSWORD }}" >> $GITHUB_ENV
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
+        echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> $GITHUB_ENV
+        
+    - name: 🎭 Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+      
+    - name: 🔍 Determine scraping parameters
+      id: params
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "nas_id=${{ github.event.inputs.nas_id }}" >> $GITHUB_OUTPUT
+          echo "start_date=${{ github.event.inputs.start_date }}" >> $GITHUB_OUTPUT
+          echo "end_date=${{ github.event.inputs.end_date }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          echo "nas_id=${{ github.event.client_payload.nas_id }}" >> $GITHUB_OUTPUT
+          echo "start_date=${{ github.event.client_payload.start_date }}" >> $GITHUB_OUTPUT
+          echo "end_date=${{ github.event.client_payload.end_date }}" >> $GITHUB_OUTPUT
+        else
+          echo "nas_id=94:2a:6f:c6:3b:ac" >> $GITHUB_OUTPUT
+          echo "start_date=2025-07-01" >> $GITHUB_OUTPUT
+          echo "end_date=2025-07-30" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: 🚀 Run device offload scraper with date range
+      run: |
+        echo "🎯 Scraping device offload data for NAS ID: ${{ steps.params.outputs.nas_id }}"
+        echo "📅 Date Range: ${{ steps.params.outputs.start_date }} to ${{ steps.params.outputs.end_date }}"
+        
+        # Validate date format
+        if ! date -d "${{ steps.params.outputs.start_date }}" >/dev/null 2>&1; then
+          echo "❌ Invalid start date format: ${{ steps.params.outputs.start_date }}"
+          echo "Expected format: YYYY-MM-DD"
+          exit 1
+        fi
+        
+        if ! date -d "${{ steps.params.outputs.end_date }}" >/dev/null 2>&1; then
+          echo "❌ Invalid end date format: ${{ steps.params.outputs.end_date }}"
+          echo "Expected format: YYYY-MM-DD"
+          exit 1
+        fi
+        
+        # Check that start date is before end date
+        if [[ "${{ steps.params.outputs.start_date }}" > "${{ steps.params.outputs.end_date }}" ]]; then
+          echo "❌ Start date must be before end date"
+          echo "Start: ${{ steps.params.outputs.start_date }}"
+          echo "End: ${{ steps.params.outputs.end_date }}"
+          exit 1
+        fi
+        
+        echo "✅ Date validation passed"
+        echo "🚀 Starting date range scraping..."
+        
+        node src/runDeviceScrapDate.js "${{ steps.params.outputs.nas_id }}" "${{ steps.params.outputs.start_date }}" "${{ steps.params.outputs.end_date }}"
+        
+    - name: 📊 Parse and validate CSV
+      id: parse-csv
+      run: |
+        echo "📋 Parsing downloaded CSV file..."
+        LATEST_FILE=$(ls -t downloads/*.txt downloads/*.csv 2>/dev/null | head -1)
+        if [ -z "$LATEST_FILE" ]; then
+          echo "❌ No downloaded file found"
+          exit 1
+        fi
+        
+        echo "📁 Processing file: $LATEST_FILE"
+        PARSE_RESULT=$(node src/parseDeviceCsv.js "$LATEST_FILE")
+        echo "parse_result<<EOF" >> $GITHUB_OUTPUT
+        echo "$PARSE_RESULT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: 💾 Upload data to database
+      run: |
+        echo "💾 Upserting data to database..."
+        LATEST_FILE=$(ls -t downloads/*.txt downloads/*.csv 2>/dev/null | head -1)
+        
+        if [ -z "$LATEST_FILE" ]; then
+          echo "❌ No downloaded file found for upsert"
+          exit 1
+        fi
+        
+        echo "📁 Processing file: $LATEST_FILE"
+        
+        # Parse the CSV and get the data
+        echo "📊 Parsing CSV for upsert..."
+        PARSE_RESULT=$(node src/parseDeviceCsv.js "$LATEST_FILE")
+        
+        # Call upsert with the correct arguments: (deviceData, nasId, sourceFilename)
+        echo "🔄 Calling upsert with parsed data..."
+        node -e "
+          const { parseDeviceCsv } = require('./src/parseDeviceCsv.js');
+          const { upsertDeviceOffload } = require('./src/upsertDeviceOffload.js');
+          const fs = require('fs');
+          
+          const fileContent = fs.readFileSync('$LATEST_FILE', 'utf8');
+          const parseResult = parseDeviceCsv(fileContent);
+          
+          if (parseResult.data && parseResult.data.length > 0) {
+            console.log('📊 Parsed data ready for upsert');
+            upsertDeviceOffload(parseResult.data, '${{ steps.params.outputs.nas_id }}', '$LATEST_FILE')
+              .then(result => {
+                console.log('✅ Upsert completed:', result);
+                process.exit(0);
+              })
+              .catch(error => {
+                console.error('❌ Upsert failed:', error);
+                process.exit(1);
+              });
+          } else {
+            console.error('❌ No valid data parsed from CSV');
+            process.exit(1);
+          }
+        "
+        
+    - name: 📋 Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: device-offload-date-data-${{ steps.params.outputs.nas_id }}-${{ steps.params.outputs.start_date }}-to-${{ steps.params.outputs.end_date }}-${{ github.run_id }}
+        path: |
+          downloads/
+        retention-days: 7
+        
+    - name: 📊 Summary
+      run: |
+        echo "🎉 Device offload date range scraping completed successfully!"
+        echo "🎯 NAS ID: ${{ steps.params.outputs.nas_id }}"
+        echo "📅 Date Range: ${{ steps.params.outputs.start_date }} to ${{ steps.params.outputs.end_date }}"
+        echo "📁 Artifacts uploaded"
+        echo "⏰ Completed at: $(date)"
+        
+  # Optional: Add a job to notify external systems
+  notify-completion:
+    needs: scrape-device-offload-date
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 📢 Notify completion
+      run: |
+        if [ "${{ needs.scrape-device-offload-date.result }}" = "success" ]; then
+          echo "✅ Date range scraping completed successfully"
+          echo "🎯 NAS ID: ${{ needs.scrape-device-offload-date.outputs.nas_id || 'unknown' }}"
+          echo "📅 Date Range: ${{ needs.scrape-device-offload-date.outputs.start_date || 'unknown' }} to ${{ needs.scrape-device-offload-date.outputs.end_date || 'unknown' }}"
+          # Add webhook notifications here if needed
+        else
+          echo "❌ Date range scraping failed"
+          # Add failure notifications here if needed
+        fi

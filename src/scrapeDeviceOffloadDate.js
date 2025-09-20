@@ -1,9 +1,9 @@
-// src/scrapeDeviceOffload.js
-// Device-specific offload scraper for Single Digits HUB portal
-// - Navigates to NASID Daily instead of Data Usage Timeline
-// - Accepts NASID as parameter
-// - Parses device-specific CSV format
-// - Returns device offload data
+// src/scrapeDeviceOffloadDate.js
+// Device-specific offload scraper with CUSTOM DATE RANGE support
+// - Navigates to NASID Daily and sets custom date range
+// - Accepts NASID, startDate, and endDate as parameters
+// - Uses proven two-step Custom Date Range activation
+// - Returns device offload data for specified date range
 
 const fs = require('fs');
 const path = require('path');
@@ -18,9 +18,208 @@ const PRE_CLICK_DELAY_MS = 1000;       // give UI time to bind download
 const POST_CLICK_POLL_MS = 100;        // poll interval
 const POST_CLICK_MAX_MS = 10000;       // total wait after click (10s)
 
-async function scrapeDeviceOffload(nasId) {
+// Date format conversion function
+function convertToMMDDYYYY(dateStr) {
+  // Convert YYYY-MM-DD to MM/DD/YYYY (format expected by UI)
+  const [year, month, day] = dateStr.split('-');
+  return `${month}/${day}/${year}`;
+}
+
+/**
+ * Sets custom date range in the NASID Daily interface using proven two-step approach
+ * @param {Page} page - Playwright page object
+ * @param {string} startDate - Start date in YYYY-MM-DD format
+ * @param {string} endDate - End date in YYYY-MM-DD format
+ */
+async function setCustomDateRange(page, startDate, endDate) {
+  console.log('📅 Setting custom date range...');
+  console.log(`   📅 Start Date: ${startDate} (${convertToMMDDYYYY(startDate)})`);
+  console.log(`   📅 End Date: ${endDate} (${convertToMMDDYYYY(endDate)})`);
+
+  try {
+    // Step 1: JavaScript state forcing to partially activate the button
+    console.log('🔧 Step 1: JavaScript state forcing...');
+    const jsStateForced = await page.evaluate(() => {
+      // Find Custom Date Range elements
+      const elements = Array.from(document.querySelectorAll('*'));
+      const customDateElements = elements.filter(el => 
+        el.textContent && el.textContent.trim() === 'Custom Date Range'
+      );
+      
+      if (customDateElements.length > 0) {
+        const element = customDateElements[0];
+        
+        // Try multiple JavaScript click methods
+        const clickMethods = [
+          () => element.click(),
+          () => element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })),
+          () => element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })),
+          () => element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true })),
+          () => {
+            const button = element.closest('button') || element.closest('[role="button"]');
+            if (button) {
+              button.click();
+              return true;
+            }
+            return false;
+          }
+        ];
+        
+        for (let i = 0; i < clickMethods.length; i++) {
+          try {
+            const result = clickMethods[i]();
+            if (result !== false) {
+              // Immediate check for date inputs
+              const dateInputs = document.querySelectorAll('input[type="date"], input[placeholder*="date"], input[placeholder*="Date"]');
+              if (dateInputs.length > 0) {
+                return true; // Success
+              }
+            }
+          } catch (error) {
+            // Continue to next method
+          }
+        }
+      }
+      
+      return false; // Partial success or setup for next step
+    });
+
+    console.log(`🔧 JavaScript state forcing result: ${jsStateForced ? 'SUCCESS' : 'PARTIAL'}`);
+
+    // Wait for potential UI changes after JavaScript forcing
+    await page.waitForTimeout(2000);
+
+    // Step 2: Follow up with Playwright clicks to complete activation
+    console.log('🔄 Step 2: Playwright follow-up clicks...');
+    let playwrightClickSuccess = false;
+    
+    // Method 1: Try getByText click
+    try {
+      console.log('🔘 Trying getByText click after JavaScript forcing...');
+      await page.getByText('Custom Date Range').click();
+      console.log('✅ getByText click successful');
+      playwrightClickSuccess = true;
+    } catch (error) {
+      console.log('⚠️ getByText click failed, trying filtered locator...');
+      
+      // Method 2: Try filtered locator click
+      try {
+        console.log('🔘 Trying filtered locator click after JavaScript forcing...');
+        await page.locator('div').filter({ hasText: /^Custom Date Range$/ }).click();
+        console.log('✅ Filtered locator click successful');
+        playwrightClickSuccess = true;
+      } catch (error2) {
+        console.log('⚠️ Both Playwright click methods failed after JavaScript forcing');
+      }
+    }
+    
+    console.log(`🔄 Playwright follow-up result: ${playwrightClickSuccess ? 'SUCCESS' : 'COMPLETED'}`);
+
+    // Wait for final UI changes after the combined approach
+    await page.waitForTimeout(3000);
+
+    // CRITICAL: Click the grid element to activate date picker (from working sequence)
+    console.log('📋 Activating date picker with grid click...');
+    await page.locator('.hub-reporting-console-app-web-MuiGrid-root.hub-reporting-console-app-web-MuiGrid-item.hub-reporting-console-app-web-MuiGrid-grid-xs-6').first().click();
+    console.log('✅ Date picker activated successfully');
+
+    // Wait for date inputs to appear
+    await page.waitForTimeout(2000);
+
+    // Fill Start Date using MM/DD/YYYY format
+    console.log(`📅 Setting start date: ${convertToMMDDYYYY(startDate)}`);
+    const startDateFormatted = convertToMMDDYYYY(startDate);
+    
+    // Try multiple selectors for start date
+    let startDateFilled = false;
+    const startDateSelectors = [
+      () => page.getByRole('textbox', { name: 'Start time' }),
+      () => page.locator('input[aria-label*="Start"]').first(),
+      () => page.locator('input[placeholder*="Start"]').first(),
+      () => page.locator('input[type="date"]').first(),
+      () => page.locator('input[type="text"]').first()
+    ];
+    
+    for (let i = 0; i < startDateSelectors.length && !startDateFilled; i++) {
+      try {
+        const selector = startDateSelectors[i]();
+        const exists = await selector.count() > 0;
+        if (exists) {
+          await selector.fill('');
+          await page.waitForTimeout(500);
+          await selector.fill(startDateFormatted);
+          await selector.press('Tab');
+          await selector.press('Tab');
+          
+          const actualValue = await selector.inputValue();
+          if (actualValue && actualValue !== '') {
+            console.log(`✅ Start date filled successfully: ${actualValue}`);
+            startDateFilled = true;
+          }
+        }
+      } catch (error) {
+        console.log(`⚠️ Start date selector ${i} failed: ${error.message}`);
+      }
+    }
+    
+    if (!startDateFilled) {
+      throw new Error('Failed to fill start date with any selector');
+    }
+
+    // Fill End Date using MM/DD/YYYY format
+    console.log(`📅 Setting end date: ${convertToMMDDYYYY(endDate)}`);
+    const endDateFormatted = convertToMMDDYYYY(endDate);
+    
+    let endDateFilled = false;
+    const endDateSelectors = [
+      () => page.getByRole('textbox', { name: 'End Date' }),
+      () => page.locator('input[aria-label*="End"]').first(),
+      () => page.locator('input[placeholder*="End"]').first(),
+      () => page.locator('input[type="date"]').nth(1),
+      () => page.locator('input[type="text"]').nth(1)
+    ];
+    
+    for (let i = 0; i < endDateSelectors.length && !endDateFilled; i++) {
+      try {
+        const selector = endDateSelectors[i]();
+        const exists = await selector.count() > 0;
+        if (exists) {
+          await selector.fill('');
+          await page.waitForTimeout(500);
+          await selector.fill(endDateFormatted);
+          await selector.press('Enter');
+          
+          const actualValue = await selector.inputValue();
+          if (actualValue && actualValue !== '') {
+            console.log(`✅ End date filled successfully: ${actualValue}`);
+            endDateFilled = true;
+          }
+        }
+      } catch (error) {
+        console.log(`⚠️ End date selector ${i} failed: ${error.message}`);
+      }
+    }
+    
+    if (!endDateFilled) {
+      throw new Error('Failed to fill end date with any selector');
+    }
+
+    // Wait for date selection to settle
+    await page.waitForTimeout(1000);
+    console.log('✅ Custom date range configured successfully');
+
+  } catch (error) {
+    console.error('❌ Failed to set custom date range:', error.message);
+    throw new Error(`Failed to configure custom date range: ${error.message}`);
+  }
+}
+
+async function scrapeDeviceOffloadDate(nasId, startDate, endDate) {
   if (!nasId) {
     throw new Error('NAS ID is required');
+  }
+  if (!startDate || !endDate) {
+    throw new Error('Both startDate and endDate are required');
   }
 
   const browser = await chromium.launch({
@@ -35,8 +234,9 @@ async function scrapeDeviceOffload(nasId) {
   let capturedResponse = null;
 
   try {
-    console.log('🚀 Starting device offload scraper...');
+    console.log('🚀 Starting device offload scraper with date range...');
     console.log(`🎯 Target NAS ID: ${nasId}`);
+    console.log(`📅 Date Range: ${startDate} to ${endDate}`);
     
     // 🧑‍💻 Login sequence (same as original)
     console.log('📱 Navigating to OKTA start page...');
@@ -81,6 +281,9 @@ async function scrapeDeviceOffload(nasId) {
     console.log('📊 Clicking NASID Daily...');
     await page1.getByRole('link', { name: 'NASID Daily' }).click();
     console.log('✅ NASID Daily clicked successfully');
+    
+    // NEW: Custom date range selection (this is the key difference from original scraper)
+    await setCustomDateRange(page1, startDate, endDate);
     
     // Wait for the NASID input section to load
     console.log('🔍 Waiting for NASID input section...');
@@ -171,7 +374,7 @@ async function scrapeDeviceOffload(nasId) {
         ) {
           fileUrl = response.url();
           const match = disposition.match(/filename="(.+?)"/);
-          filename = match?.[1] || 'device_offload.csv';
+          filename = match?.[1] || 'device_offload_date.csv';
           capturedResponse = response;
           console.log('✅ Correct file detected:', filename);
         }
@@ -294,7 +497,7 @@ async function scrapeDeviceOffload(nasId) {
     console.log('✅ File saved successfully:', fullPath);
     console.log('📊 Preview:\n', csvText.substring(0, 500));
 
-    return { csvText, filename, fullPath, nasId };
+    return { csvText, filename, fullPath, nasId, startDate, endDate };
   } finally {
     await context.close();
     await browser.close();
@@ -305,22 +508,34 @@ async function scrapeDeviceOffload(nasId) {
 if (require.main === module) {
   require('dotenv').config();
   const nasId = process.argv[2];
+  const startDate = process.argv[3];
+  const endDate = process.argv[4];
+  
   if (!nasId) {
-    console.error('❌ Usage: node src/scrapeDeviceOffload.js <NAS_ID>');
+    console.error('❌ Usage: node src/scrapeDeviceOffloadDate.js <NAS_ID> <START_DATE> <END_DATE>');
+    console.error('   Example: node src/scrapeDeviceOffloadDate.js bcb92300ae0c 2025-07-01 2025-07-30');
     process.exit(1);
   }
   
-  scrapeDeviceOffload(nasId)
+  if (!startDate || !endDate) {
+    console.error('❌ Both start date and end date are required');
+    console.error('   Format: YYYY-MM-DD');
+    console.error('   Example: node src/scrapeDeviceOffloadDate.js bcb92300ae0c 2025-07-01 2025-07-30');
+    process.exit(1);
+  }
+  
+  scrapeDeviceOffloadDate(nasId, startDate, endDate)
     .then((result) => {
-      console.log('✅ Scraping completed successfully!');
+      console.log('✅ Date range scraping completed successfully!');
       console.log(`📁 File: ${result.filename}`);
       console.log(`🎯 NAS ID: ${result.nasId}`);
+      console.log(`📅 Date Range: ${result.startDate} to ${result.endDate}`);
       process.exit(0);
     })
     .catch((e) => {
-      console.error('❌ Scraping failed:', e);
+      console.error('❌ Date range scraping failed:', e);
       process.exit(1);
     });
 }
 
-module.exports = { scrapeDeviceOffload };
+module.exports = { scrapeDeviceOffloadDate };
