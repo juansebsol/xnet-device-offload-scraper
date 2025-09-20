@@ -30,15 +30,27 @@ async function setCustomDateRange(page, startDate, endDate) {
   console.log(`   📅 End Date: ${endDate}`);
 
   try {
-    // Click Custom Date Range option
+    // Click Custom Date Range option - use exact selector from working sequence
     console.log('🔘 Clicking Custom Date Range...');
-    await page.getByText('Custom Date Range').click();
-    console.log('✅ Custom Date Range clicked successfully');
+    try {
+      await page.locator('div').filter({ hasText: /^Custom Date Range$/ }).click();
+      console.log('✅ Custom Date Range clicked successfully (exact selector)');
+    } catch (error) {
+      console.log('⚠️ Exact selector failed, trying getByText fallback...');
+      await page.getByText('Custom Date Range').click();
+      console.log('✅ Custom Date Range clicked successfully (fallback)');
+    }
 
-    // Click the first grid item to open date picker
-    console.log('📋 Opening date picker...');
+    // Wait for UI to update after clicking Custom Date Range
+    await page.waitForTimeout(2000);
+
+    // CRITICAL: Click the grid element to activate date picker (from working sequence)
+    console.log('📋 Activating date picker with grid click...');
     await page.locator('.hub-reporting-console-app-web-MuiGrid-root.hub-reporting-console-app-web-MuiGrid-item.hub-reporting-console-app-web-MuiGrid-grid-xs-6').first().click();
-    console.log('✅ Date picker opened successfully');
+    console.log('✅ Date picker activated successfully');
+
+    // Wait for date inputs to appear
+    await page.waitForTimeout(2000);
 
     // Fill Start Date
     console.log(`📅 Setting start date: ${startDate}`);
@@ -53,8 +65,8 @@ async function setCustomDateRange(page, startDate, endDate) {
     await page.getByRole('textbox', { name: 'End Date' }).press('Enter');
     console.log('✅ End date set successfully');
 
-    // Small delay to let the date selection settle
-    await page.waitForTimeout(500);
+    // Wait for date selection to settle
+    await page.waitForTimeout(1000);
     console.log('✅ Custom date range configured successfully');
 
   } catch (error) {
