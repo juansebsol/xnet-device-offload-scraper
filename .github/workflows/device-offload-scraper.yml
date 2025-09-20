@@ -75,12 +75,19 @@ jobs:
     - name: 🚀 Run device offload scraper
       run: |
         echo "🎯 Scraping device offload data for NAS ID: ${{ steps.params.outputs.nas_id }}"
-        if [ -n "${{ steps.params.outputs.start_date }}" ] && [ -n "${{ steps.params.outputs.end_date }}" ]; then
-          echo "📅 Using custom date range: ${{ steps.params.outputs.start_date }} to ${{ steps.params.outputs.end_date }}"
-          node src/scrapeDeviceOffload.js "${{ steps.params.outputs.nas_id }}" "${{ steps.params.outputs.start_date }}" "${{ steps.params.outputs.end_date }}"
+        START_DATE="${{ steps.params.outputs.start_date }}"
+        END_DATE="${{ steps.params.outputs.end_date }}"
+        NAS_ID="${{ steps.params.outputs.nas_id }}"
+        
+        echo "DEBUG: START_DATE='$START_DATE'"
+        echo "DEBUG: END_DATE='$END_DATE'"
+        
+        if [ -n "$START_DATE" ] && [ -n "$END_DATE" ] && [ "$START_DATE" != "" ] && [ "$END_DATE" != "" ]; then
+          echo "📅 Using custom date range: $START_DATE to $END_DATE"
+          node src/scrapeDeviceOffload.js "$NAS_ID" "$START_DATE" "$END_DATE"
         else
           echo "📅 Using default date range"
-          node src/scrapeDeviceOffload.js "${{ steps.params.outputs.nas_id }}"
+          node src/scrapeDeviceOffload.js "$NAS_ID"
         fi
         
     - name: 📊 Parse and validate CSV
