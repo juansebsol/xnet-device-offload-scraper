@@ -25,7 +25,7 @@ on:
   
   # Repository dispatch (can be triggered by external API calls)
   repository_dispatch:
-    types: [device-offload-scrape, device-offload-scrape-date]
+    types: [device-offload-scrape]
 
 jobs:
   scrape-device-offload:
