@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Device Scraping with Date Range</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .description {
+            color: #666;
+            margin-bottom: 25px;
+            font-style: italic;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"], input[type="date"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus, input[type="date"]:focus {
+            outline: none;
+            border-color: #007cba;
+            box-shadow: 0 0 5px rgba(0,124,186,0.3);
+        }
+        .date-range {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        button {
+            background-color: #007cba;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #005a87;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .example {
+            background-color: #e7f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #0066cc;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Manual Device Scraping with Date Range</h2>
+        <p class="description">This will trigger a GitHub Action to scrape device data for a specific date range</p>
+        
+        <form id="scrapeForm">
+            <div class="form-group">
+                <label for="nas_id">NAS ID:</label>
+                <input type="text" id="nas_id" placeholder="bcb92300ae0c" required>
+                <div class="example">Example: bcb92300ae0c</div>
+            </div>
+            
+            <div class="form-group">
+                <label>Date Range:</label>
+                <div class="date-range">
+                    <div>
+                        <label for="start_date">Start Date:</label>
+                        <input type="date" id="start_date" required>
+                    </div>
+                    <div>
+                        <label for="end_date">End Date:</label>
+                        <input type="date" id="end_date" required>
+                    </div>
+                </div>
+                <div class="example">Select the date range you want to scrape. End date must be after start date.</div>
+            </div>
+            
+            <button type="submit" id="submitBtn">Trigger GitHub Action Scrape</button>
+        </form>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Set default dates (last 30 days)
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        
+        document.getElementById('end_date').value = today.toISOString().split('T')[0];
+        document.getElementById('start_date').value = thirtyDaysAgo.toISOString().split('T')[0];
+
+        document.getElementById('scrapeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            
+            // Get form data
+            const data = {
+                nas_id: document.getElementById('nas_id').value,
+                start_date: document.getElementById('start_date').value,
+                end_date: document.getElementById('end_date').value
+            };
+            
+            // Basic validation
+            if (!data.nas_id || !data.start_date || !data.end_date) {
+                showResult('error', 'All fields are required');
+                return;
+            }
+            
+            const startDate = new Date(data.start_date);
+            const endDate = new Date(data.end_date);
+            
+            if (startDate >= endDate) {
+                showResult('error', 'Start date must be before end date');
+                return;
+            }
+            
+            // Disable button and show loading
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Triggering...';
+            resultDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape-date', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showResult('success', '✅ Success!', result);
+                } else {
+                    showResult('error', '❌ Error', result);
+                }
+            } catch (error) {
+                showResult('error', 'Network Error: ' + error.message);
+            } finally {
+                // Re-enable button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Trigger GitHub Action Scrape';
+            }
+        });
+        
+        function showResult(type, title, data = null) {
+            const resultDiv = document.getElementById('result');
+            
+            let content = `<div style="font-weight: bold; margin-bottom: 10px;">${title}</div>`;
+            
+            if (data) {
+                content += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            }
+            
+            resultDiv.className = type;
+            resultDiv.innerHTML = content;
+            resultDiv.style.display = 'block';
+        }
+        
+        // Add date validation
+        document.getElementById('start_date').addEventListener('change', validateDates);
+        document.getElementById('end_date').addEventListener('change', validateDates);
+        
+        function validateDates() {
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            const submitBtn = document.getElementById('submitBtn');
+            
+            if (startDate && endDate) {
+                if (new Date(startDate) >= new Date(endDate)) {
+                    submitBtn.disabled = true;
+                    showResult('error', 'Start date must be before end date');
+                } else {
+                    submitBtn.disabled = false;
+                    document.getElementById('result').style.display = 'none';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

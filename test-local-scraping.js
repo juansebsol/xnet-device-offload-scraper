@@ -10,7 +10,7 @@ const { getDeviceOffloadData, getDeviceOffloadSummary } = require('./src/upsertD
 
 // Test configuration
 const TEST_DEVICES = [
-  'bcb92300ae0c',  // Your sample device
+  '94:2a:6f:c6:3b:ac',  // Your sample device
   // Add more test devices here
 ];
 
@@ -125,7 +125,15 @@ async function testSingleFunction(functionName, ...args) {
     switch (functionName) {
       case 'scrape':
         const deviceId = args[0] || TEST_DEVICES[0];
-        const result = await runDeviceScrape(deviceId);
+        const startDate = args[1];
+        const endDate = args[2];
+        const options = {};
+        if (startDate && endDate) {
+          options.startDate = startDate;
+          options.endDate = endDate;
+          console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
+        }
+        const result = await runDeviceScrape(deviceId, options);
         console.log(`✅ Scraping successful: ${result.upsertResult.totalUpserted} records`);
         break;
         
@@ -165,12 +173,13 @@ if (require.main === module) {
     console.log('  node test-local-scraping.js');
     console.log('');
     console.log('Test specific functions:');
-    console.log('  node test-local-scraping.js scrape [device_id]');
+    console.log('  node test-local-scraping.js scrape [device_id] [start_date] [end_date]');
     console.log('  node test-local-scraping.js query [device_id] [days]');
     console.log('  node test-local-scraping.js scheduled');
     console.log('');
     console.log('Examples:');
     console.log('  node test-local-scraping.js scrape bcb92300ae0c');
+    console.log('  node test-local-scraping.js scrape bcb92300ae0c 2025-10-25 2025-10-30');
     console.log('  node test-local-scraping.js query bcb92300ae0c 30');
     console.log('  node test-local-scraping.js scheduled');
   } else {

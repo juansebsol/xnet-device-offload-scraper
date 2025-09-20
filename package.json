@@ -15,6 +15,7 @@
     "device:list": "node -r dotenv/config src/scheduledDeviceScrape.js list",
     "test:local": "node -r dotenv/config test-local-scraping.js",
     "test:scrape": "node -r dotenv/config test-local-scraping.js scrape",
+    "test:scrape:date": "node -r dotenv/config test-local-scraping.js scrape",
     "test:query": "node -r dotenv/config test-local-scraping.js query",
     "test:scheduled": "node -r dotenv/config test-local-scraping.js scheduled"
   },

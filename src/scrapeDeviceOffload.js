@@ -18,10 +18,58 @@ const PRE_CLICK_DELAY_MS = 1000;       // give UI time to bind download
 const POST_CLICK_POLL_MS = 100;        // poll interval
 const POST_CLICK_MAX_MS = 10000;       // total wait after click (10s)
 
-async function scrapeDeviceOffload(nasId) {
+/**
+ * Sets custom date range in the NASID Daily interface
+ * @param {Page} page - Playwright page object
+ * @param {string} startDate - Start date in YYYY-MM-DD format
+ * @param {string} endDate - End date in YYYY-MM-DD format
+ */
+async function setCustomDateRange(page, startDate, endDate) {
+  console.log('📅 Setting custom date range...');
+  console.log(`   📅 Start Date: ${startDate}`);
+  console.log(`   📅 End Date: ${endDate}`);
+
+  try {
+    // Click Custom Date Range option
+    console.log('🔘 Clicking Custom Date Range...');
+    await page.getByText('Custom Date Range').click();
+    console.log('✅ Custom Date Range clicked successfully');
+
+    // Click the first grid item to open date picker
+    console.log('📋 Opening date picker...');
+    await page.locator('.hub-reporting-console-app-web-MuiGrid-root.hub-reporting-console-app-web-MuiGrid-item.hub-reporting-console-app-web-MuiGrid-grid-xs-6').first().click();
+    console.log('✅ Date picker opened successfully');
+
+    // Fill Start Date
+    console.log(`📅 Setting start date: ${startDate}`);
+    await page.getByRole('textbox', { name: 'Start time' }).fill(startDate);
+    await page.getByRole('textbox', { name: 'Start time' }).press('Tab');
+    await page.getByRole('textbox', { name: 'Start time' }).press('Tab');
+    console.log('✅ Start date set successfully');
+
+    // Fill End Date
+    console.log(`📅 Setting end date: ${endDate}`);
+    await page.getByRole('textbox', { name: 'End Date' }).fill(endDate);
+    await page.getByRole('textbox', { name: 'End Date' }).press('Enter');
+    console.log('✅ End date set successfully');
+
+    // Small delay to let the date selection settle
+    await page.waitForTimeout(500);
+    console.log('✅ Custom date range configured successfully');
+
+  } catch (error) {
+    console.error('❌ Failed to set custom date range:', error.message);
+    throw new Error(`Failed to configure custom date range: ${error.message}`);
+  }
+}
+
+async function scrapeDeviceOffload(nasId, options = {}) {
   if (!nasId) {
     throw new Error('NAS ID is required');
   }
+
+  const { startDate, endDate } = options;
+  const useCustomDateRange = startDate && endDate;
 
   const browser = await chromium.launch({
     headless: true,
@@ -37,6 +85,11 @@ async function scrapeDeviceOffload(nasId) {
   try {
     console.log('🚀 Starting device offload scraper...');
     console.log(`🎯 Target NAS ID: ${nasId}`);
+    if (useCustomDateRange) {
+      console.log(`📅 Custom Date Range: ${startDate} to ${endDate}`);
+    } else {
+      console.log('📅 Using default date range (last 7 days)');
+    }
     
     // 🧑‍💻 Login sequence (same as original)
     console.log('📱 Navigating to OKTA start page...');
@@ -81,6 +134,11 @@ async function scrapeDeviceOffload(nasId) {
     console.log('📊 Clicking NASID Daily...');
     await page1.getByRole('link', { name: 'NASID Daily' }).click();
     console.log('✅ NASID Daily clicked successfully');
+    
+    // NEW: Custom date range selection (if specified)
+    if (useCustomDateRange) {
+      await setCustomDateRange(page1, startDate, endDate);
+    }
     
     // Wait for the NASID input section to load
     console.log('🔍 Waiting for NASID input section...');
@@ -305,12 +363,23 @@ async function scrapeDeviceOffload(nasId) {
 if (require.main === module) {
   require('dotenv').config();
   const nasId = process.argv[2];
+  const startDate = process.argv[3];
+  const endDate = process.argv[4];
+  
   if (!nasId) {
-    console.error('❌ Usage: node src/scrapeDeviceOffload.js <NAS_ID>');
+    console.error('❌ Usage: node src/scrapeDeviceOffload.js <NAS_ID> [START_DATE] [END_DATE]');
+    console.error('   Example: node src/scrapeDeviceOffload.js bcb92300ae0c 2025-10-25 2025-10-30');
+    console.error('   Default: Uses default date range if dates not provided');
     process.exit(1);
   }
   
-  scrapeDeviceOffload(nasId)
+  const options = {};
+  if (startDate && endDate) {
+    options.startDate = startDate;
+    options.endDate = endDate;
+  }
+  
+  scrapeDeviceOffload(nasId, options)
     .then((result) => {
       console.log('✅ Scraping completed successfully!');
       console.log(`📁 File: ${result.filename}`);

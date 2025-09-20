@@ -9,6 +9,14 @@ on:
         required: true
         type: string
         default: 'bcb92300ae0c'
+      start_date:
+        description: 'Start date (YYYY-MM-DD) - optional'
+        required: false
+        type: string
+      end_date:
+        description: 'End date (YYYY-MM-DD) - optional'
+        required: false
+        type: string
       force_refresh:
         description: 'Force refresh existing data'
         required: false
@@ -17,7 +25,7 @@ on:
   
   # Repository dispatch (can be triggered by external API calls)
   repository_dispatch:
-    types: [device-offload-scrape]
+    types: [device-offload-scrape, device-offload-scrape-date]
 
 jobs:
   scrape-device-offload:
@@ -47,21 +55,33 @@ jobs:
     - name: 🎭 Install Playwright browsers
       run: npx playwright install --with-deps chromium
       
-    - name: 🔍 Determine NAS ID
-      id: nas-id
+    - name: 🔍 Determine scraping parameters
+      id: params
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
           echo "nas_id=${{ github.event.inputs.nas_id }}" >> $GITHUB_OUTPUT
+          echo "start_date=${{ github.event.inputs.start_date }}" >> $GITHUB_OUTPUT
+          echo "end_date=${{ github.event.inputs.end_date }}" >> $GITHUB_OUTPUT
         elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
           echo "nas_id=${{ github.event.client_payload.nas_id }}" >> $GITHUB_OUTPUT
+          echo "start_date=${{ github.event.client_payload.start_date }}" >> $GITHUB_OUTPUT
+          echo "end_date=${{ github.event.client_payload.end_date }}" >> $GITHUB_OUTPUT
         else
           echo "nas_id=bcb92300ae0c" >> $GITHUB_OUTPUT
+          echo "start_date=" >> $GITHUB_OUTPUT
+          echo "end_date=" >> $GITHUB_OUTPUT
         fi
         
     - name: 🚀 Run device offload scraper
       run: |
-        echo "🎯 Scraping device offload data for NAS ID: ${{ steps.nas-id.outputs.nas_id }}"
-        node src/scrapeDeviceOffload.js "${{ steps.nas-id.outputs.nas_id }}"
+        echo "🎯 Scraping device offload data for NAS ID: ${{ steps.params.outputs.nas_id }}"
+        if [ -n "${{ steps.params.outputs.start_date }}" ] && [ -n "${{ steps.params.outputs.end_date }}" ]; then
+          echo "📅 Using custom date range: ${{ steps.params.outputs.start_date }} to ${{ steps.params.outputs.end_date }}"
+          node src/scrapeDeviceOffload.js "${{ steps.params.outputs.nas_id }}" "${{ steps.params.outputs.start_date }}" "${{ steps.params.outputs.end_date }}"
+        else
+          echo "📅 Using default date range"
+          node src/scrapeDeviceOffload.js "${{ steps.params.outputs.nas_id }}"
+        fi
         
     - name: 📊 Parse and validate CSV
       id: parse-csv
@@ -108,7 +128,7 @@ jobs:
           
           if (parseResult.data && parseResult.data.length > 0) {
             console.log('📊 Parsed data ready for upsert');
-            upsertDeviceOffload(parseResult.data, '${{ steps.nas-id.outputs.nas_id }}', '$LATEST_FILE')
+            upsertDeviceOffload(parseResult.data, '${{ steps.params.outputs.nas_id }}', '$LATEST_FILE')
               .then(result => {
                 console.log('✅ Upsert completed:', result);
                 process.exit(0);
@@ -126,7 +146,7 @@ jobs:
     - name: 📋 Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: device-offload-data-${{ steps.nas-id.outputs.nas_id }}-${{ github.run_id }}
+        name: device-offload-data-${{ steps.params.outputs.nas_id }}-${{ github.run_id }}
         path: |
           downloads/
         retention-days: 7
@@ -134,7 +154,12 @@ jobs:
     - name: 📊 Summary
       run: |
         echo "🎉 Device offload scraping completed successfully!"
-        echo "🎯 NAS ID: ${{ steps.nas-id.outputs.nas_id }}"
+        echo "🎯 NAS ID: ${{ steps.params.outputs.nas_id }}"
+        if [ -n "${{ steps.params.outputs.start_date }}" ] && [ -n "${{ steps.params.outputs.end_date }}" ]; then
+          echo "📅 Date Range: ${{ steps.params.outputs.start_date }} to ${{ steps.params.outputs.end_date }}"
+        else
+          echo "📅 Date Range: Default (last 7 days)"
+        fi
         echo "📁 Artifacts uploaded"
         echo "⏰ Completed at: $(date)"
         

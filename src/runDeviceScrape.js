@@ -6,18 +6,26 @@ const { scrapeDeviceOffload } = require('./scrapeDeviceOffload');
 const { parseDeviceCsv } = require('./parseDeviceCsv');
 const { upsertDeviceOffload } = require('./upsertDeviceOffload');
 
-async function runDeviceScrape(nasId) {
+async function runDeviceScrape(nasId, options = {}) {
   if (!nasId) {
     throw new Error('NAS ID is required');
   }
 
+  const { startDate, endDate } = options;
+  const useCustomDateRange = startDate && endDate;
+
   console.log(`🚀 Starting device offload scrape for NAS ID: ${nasId}`);
+  if (useCustomDateRange) {
+    console.log(`📅 Custom Date Range: ${startDate} to ${endDate}`);
+  } else {
+    console.log('📅 Using default date range');
+  }
   console.log('⏰', new Date().toISOString());
 
   try {
     // Step 1: Scrape the data
     console.log('\n📱 Step 1: Scraping device offload data...');
-    const scrapeResult = await scrapeDeviceOffload(nasId);
+    const scrapeResult = await scrapeDeviceOffload(nasId, options);
     console.log('✅ Scraping completed successfully');
 
     // Step 2: Parse the CSV
@@ -73,14 +81,23 @@ async function runDeviceScrape(nasId) {
 if (require.main === module) {
   require('dotenv').config();
   const nasId = process.argv[2];
+  const startDate = process.argv[3];
+  const endDate = process.argv[4];
   
   if (!nasId) {
-    console.error('❌ Usage: node src/runDeviceScrape.js <NAS_ID>');
-    console.log('💡 Example: node src/runDeviceScrape.js bcb92300ae0c');
+    console.error('❌ Usage: node src/runDeviceScrape.js <NAS_ID> [START_DATE] [END_DATE]');
+    console.log('💡 Example: node src/runDeviceScrape.js bcb92300ae0c 2025-10-25 2025-10-30');
+    console.log('💡 Default: node src/runDeviceScrape.js bcb92300ae0c');
     process.exit(1);
   }
 
-  runDeviceScrape(nasId)
+  const options = {};
+  if (startDate && endDate) {
+    options.startDate = startDate;
+    options.endDate = endDate;
+  }
+
+  runDeviceScrape(nasId, options)
     .then(() => {
       console.log('\n✅ All done!');
       process.exit(0);
