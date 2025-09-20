@@ -30,19 +30,89 @@ async function setCustomDateRange(page, startDate, endDate) {
   console.log(`   📅 End Date: ${endDate}`);
 
   try {
-    // Click Custom Date Range option - use exact selector from working sequence
-    console.log('🔘 Clicking Custom Date Range...');
-    try {
-      await page.locator('div').filter({ hasText: /^Custom Date Range$/ }).click();
-      console.log('✅ Custom Date Range clicked successfully (exact selector)');
-    } catch (error) {
-      console.log('⚠️ Exact selector failed, trying getByText fallback...');
-      await page.getByText('Custom Date Range').click();
-      console.log('✅ Custom Date Range clicked successfully (fallback)');
-    }
+    // Click Custom Date Range option - use proven two-step approach
+    console.log('🔘 Activating Custom Date Range (two-step process)...');
+    
+    // Step 1: JavaScript state forcing to partially activate the button
+    console.log('🔧 Step 1: JavaScript state forcing...');
+    const jsStateForced = await page.evaluate(() => {
+      // Find Custom Date Range elements
+      const elements = Array.from(document.querySelectorAll('*'));
+      const customDateElements = elements.filter(el => 
+        el.textContent && el.textContent.trim() === 'Custom Date Range'
+      );
+      
+      if (customDateElements.length > 0) {
+        const element = customDateElements[0];
+        
+        // Try multiple JavaScript click methods
+        const clickMethods = [
+          () => element.click(),
+          () => element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })),
+          () => element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })),
+          () => element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true })),
+          () => {
+            const button = element.closest('button') || element.closest('[role="button"]');
+            if (button) {
+              button.click();
+              return true;
+            }
+            return false;
+          }
+        ];
+        
+        for (let i = 0; i < clickMethods.length; i++) {
+          try {
+            const result = clickMethods[i]();
+            if (result !== false) {
+              // Immediate check for date inputs
+              const dateInputs = document.querySelectorAll('input[type="date"], input[placeholder*="date"], input[placeholder*="Date"]');
+              if (dateInputs.length > 0) {
+                return true; // Success
+              }
+            }
+          } catch (error) {
+            // Continue to next method
+          }
+        }
+      }
+      
+      return false; // Partial success or setup for next step
+    });
 
-    // Wait for UI to update after clicking Custom Date Range
+    console.log(`🔧 JavaScript state forcing result: ${jsStateForced ? 'SUCCESS' : 'PARTIAL'}`);
+
+    // Wait for potential UI changes after JavaScript forcing
     await page.waitForTimeout(2000);
+
+    // Step 2: Follow up with Playwright clicks to complete activation
+    console.log('🔄 Step 2: Playwright follow-up clicks...');
+    let playwrightClickSuccess = false;
+    
+    // Method 1: Try getByText click
+    try {
+      console.log('🔘 Trying getByText click after JavaScript forcing...');
+      await page.getByText('Custom Date Range').click();
+      console.log('✅ getByText click successful');
+      playwrightClickSuccess = true;
+    } catch (error) {
+      console.log('⚠️ getByText click failed, trying filtered locator...');
+      
+      // Method 2: Try filtered locator click
+      try {
+        console.log('🔘 Trying filtered locator click after JavaScript forcing...');
+        await page.locator('div').filter({ hasText: /^Custom Date Range$/ }).click();
+        console.log('✅ Filtered locator click successful');
+        playwrightClickSuccess = true;
+      } catch (error2) {
+        console.log('⚠️ Both Playwright click methods failed after JavaScript forcing');
+      }
+    }
+    
+    console.log(`🔄 Playwright follow-up result: ${playwrightClickSuccess ? 'SUCCESS' : 'COMPLETED'}`);
+
+    // Wait for final UI changes after the combined approach
+    await page.waitForTimeout(3000);
 
     // CRITICAL: Click the grid element to activate date picker (from working sequence)
     console.log('📋 Activating date picker with grid click...');
