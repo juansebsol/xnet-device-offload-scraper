@@ -13,10 +13,11 @@ This project has been **completely refactored** to focus exclusively on **device
 - **Parent/Child Database Structure**: `devices` table (parent) → `device_offload_daily` table (child)
 - **Data Aggregation**: Automatically sums multiple records per date per device
 - **Historical Data Preservation**: Never overwrites, always inserts new records
+- **Dual Scraping Modes**: Standard (last 7 days) and Custom Date Range scraping
 - **Two main endpoints**: One for triggering scraping, one for querying data
 - **Scheduled scraping**: Automatically scrapes configured devices daily
 - **Device management**: Easy API to add/remove devices from scraping list
-- **Clean architecture**: No more overall offload scraping
+- **Clean architecture**: Separate scrapers for different use cases
 
 ## 🗄️ V2 Database Schema
 
@@ -58,21 +59,27 @@ This project has been **completely refactored** to focus exclusively on **device
 ```
 xnet-device-offload-scraper/
 ├── src/
-│   ├── runDeviceScrape.js        # Main runner for device scraping
+│   ├── runDeviceScrape.js        # Main runner for standard device scraping
+│   ├── runDeviceScrapDate.js     # NEW: Main runner for date range scraping
 │   ├── scheduledDeviceScrape.js  # Scheduled scraping for multiple devices
-│   ├── scrapeDeviceOffload.js    # Core device scraper (with CSV format selection)
+│   ├── scrapeDeviceOffload.js    # Core device scraper (standard, last 7 days)
+│   ├── scrapeDeviceOffloadDate.js # NEW: Core scraper with custom date range
 │   ├── parseDeviceCsv.js         # Device CSV parser (with data aggregation)
 │   ├── upsertDeviceOffload.js    # Device database operations (V2 structure)
 │   └── supabase.js               # Supabase client config
 ├── api/
-│   ├── trigger-scrape.js         # Trigger scraping endpoint
+│   ├── trigger-scrape.js         # Trigger standard scraping endpoint
+│   ├── trigger-scrape-date.js    # NEW: Trigger date range scraping endpoint
 │   ├── device-offload.js         # Query data endpoint (V2 structure)
 │   └── manage-devices.js         # Device management endpoint (V2 structure)
 ├── utils/
-│   ├── supa-sql-migrate.txt              # V2 migration (parent/child structure)
-│   └── supa-sql-destructive.txt          # Nuclear option for fresh start
+│   ├── trigger-scrape-ui.html        # UI for standard scraping
+│   ├── trigger-scrape-date-ui.html   # NEW: UI for date range scraping
+│   ├── supa-sql-migrate.txt          # V2 migration (parent/child structure)
+│   └── supa-sql-destructive.txt      # Nuclear option for fresh start
 ├── .github/workflows/
-│   ├── device-offload-scraper.yml        # Manual trigger workflow
+│   ├── device-offload-scraper.yml        # Standard scraping workflow
+│   ├── device-offload-scraper-date.yml   # NEW: Date range scraping workflow
 │   └── scheduled-device-scraping.yml     # Daily scheduled workflow
 └── README-DEVICE-OFFLOAD.md              # Complete documentation
 ```
@@ -83,8 +90,11 @@ xnet-device-offload-scraper/
 # Install dependencies
 npm install
 
-# Scrape a specific device
-npm run scrape:device bcb92300ae0c
+# Standard device scraping (last 7 days)
+npm run scrape:device 94:2a:6f:c6:3b:ac
+
+# NEW: Custom date range scraping
+npm run scrape:device:date 94:2a:6f:c6:3b:ac 2025-07-01 2025-07-30
 
 # Run scheduled scraping for all devices
 npm run scrape:scheduled all
@@ -102,9 +112,52 @@ npm run test:query bcb92300ae0c 7
 
 ## 🔗 API Endpoints
 
-- **`POST /api/trigger-scrape`** - Trigger scraping for a device
+### Standard Scraping
+- **`POST /api/trigger-scrape`** - Trigger standard scraping (last 7 days)
+  ```json
+  { "nas_id": "94:2a:6f:c6:3b:ac" }
+  ```
+
+### NEW: Date Range Scraping  
+- **`POST /api/trigger-scrape-date`** - Trigger custom date range scraping
+  ```json
+  { 
+    "nas_id": "94:2a:6f:c6:3b:ac",
+    "start_date": "2025-07-01", 
+    "end_date": "2025-07-30"
+  }
+  ```
+
+### Data & Management
 - **`GET /api/device-offload`** - Query device data (V2 structure)
 - **`GET/POST/PUT/DELETE /api/manage-devices`** - Manage device list (V2 structure)
+
+## 📅 Dual Scraping Modes
+
+### Standard Scraping (Default)
+- **Uses default date range** (typically last 7 days as set by the portal)
+- **Files**: `scrapeDeviceOffload.js`, `runDeviceScrape.js`
+- **Workflow**: `device-offload-scraper.yml`
+- **UI**: `utils/trigger-scrape-ui.html`
+- **API**: `POST /api/trigger-scrape`
+
+### Custom Date Range Scraping (NEW)
+- **Specify exact date range** (YYYY-MM-DD format)
+- **Files**: `scrapeDeviceOffloadDate.js`, `runDeviceScrapDate.js`
+- **Workflow**: `device-offload-scraper-date.yml`
+- **UI**: `utils/trigger-scrape-date-ui.html`
+- **API**: `POST /api/trigger-scrape-date`
+- **Features**: Two-step Custom Date Range activation, MM/DD/YYYY format conversion
+
+### Usage Examples
+
+```bash
+# Standard scraping (whatever the portal defaults to)
+npm run scrape:device 94:2a:6f:c6:3b:ac
+
+# Date range scraping (specific dates)
+npm run scrape:device:date 94:2a:6f:c6:3b:ac 2025-07-01 2025-07-30
+```
 
 ## 🗄️ Database Setup
 
