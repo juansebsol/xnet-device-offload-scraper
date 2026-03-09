@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XNET Device Offload - Scrape Management UI</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --soft: #f3f4f6;
+      --primary: #16a34a;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .content { padding: 18px; }
+    .section { margin-bottom: 20px; }
+    .section:last-child { margin-bottom: 0; }
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .section-header-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .form-group { margin-bottom: 12px; }
+    .form-row .form-group { flex: 1; min-width: 220px; }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      background: white;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: rgba(37, 99, 235, 0.7);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+    .hint-text {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .add-mode-switcher {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--soft);
+      margin-bottom: 10px;
+    }
+    .add-mode-switcher button {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 10px 12px;
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      margin: 0;
+    }
+    .add-mode-switcher button.active {
+      background: white;
+      color: var(--text);
+    }
+    .button {
+      appearance: none;
+      border: 1px solid rgba(0, 0, 0, 0);
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .button:hover { filter: brightness(0.97); }
+    .button:active { filter: brightness(0.94); }
+    .button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .button.success { background: var(--success); }
+    .button.info { background: var(--soft); color: var(--text); border-color: var(--border); }
+    .button.danger { background: var(--danger); }
+    .result {
+      display: none;
+      margin-top: 12px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 13px;
+    }
+    .result.success { border-color: rgba(22,163,74,0.35); background: rgba(22,163,74,0.08); }
+    .result.error { border-color: rgba(220,38,38,0.35); background: rgba(220,38,38,0.08); }
+    .result.info { border-color: rgba(37,99,235,0.35); background: rgba(37,99,235,0.08); }
+    .loading {
+      display: none;
+      margin: 10px 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      background: white;
+    }
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(17,24,39,0.15);
+      border-top-color: rgba(17,24,39,0.5);
+      border-radius: 999px;
+      animation: spin 0.8s linear infinite;
+      vertical-align: -2px;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .summary-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: white;
+    }
+    .summary-card .value { font-size: 16px; font-weight: 800; }
+    .summary-card .label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .table-wrap {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: white;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      background: var(--soft);
+      padding: 10px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    .api-info {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: white;
+      margin-top: 14px;
+    }
+    .api-info h3 { margin: 0 0 8px; font-size: 14px; }
+    .api-info code {
+      background: var(--soft);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background: var(--soft);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>XNET Device Offload API</h1>
+      <p>Trigger scrapes + fetch offload data (full test UI)</p>
+    </div>
+
+    <div class="content">
+      <div class="section">
+        <h2>API Configuration</h2>
+        <div class="form-group">
+          <label for="apiUrl">API Base URL</label>
+          <input type="url" id="apiUrl" value="https://xnet-device-offload-scraper.vercel.app" placeholder="https://your-api-domain.vercel.app">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Trigger scrape</h2>
+        <div class="add-mode-switcher">
+          <button type="button" class="active" id="triggerModeQuickBtn" onclick="setTriggerMode('quick')">Quick trigger</button>
+          <button type="button" id="triggerModeDateBtn" onclick="setTriggerMode('date')">Date range trigger</button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="triggerNasId">NAS ID</label>
+            <input type="text" id="triggerNasId" placeholder="bcb92300ae0c">
+          </div>
+          <div class="form-group" id="triggerDaysGroup">
+            <label for="triggerDays">Days (optional for quick)</label>
+            <input type="number" id="triggerDays" min="1" max="365" placeholder="30">
+            <p class="hint-text">Only informational for your test run notes.</p>
+          </div>
+        </div>
+
+        <div class="form-row" id="dateRangeFields" style="display:none;">
+          <div class="form-group">
+            <label for="triggerStartDate">Start date</label>
+            <input type="date" id="triggerStartDate">
+          </div>
+          <div class="form-group">
+            <label for="triggerEndDate">End date</label>
+            <input type="date" id="triggerEndDate">
+          </div>
+        </div>
+
+        <button class="button success" id="triggerBtn" onclick="triggerScrape()">Trigger scrape</button>
+        <button class="button info" onclick="clearTriggerForm()">Clear</button>
+        <button class="button info" onclick="copyNasToFetch()">Use NAS in fetch</button>
+
+        <div class="result" id="triggerResult"></div>
+      </div>
+
+      <div class="section">
+        <h2>Fetch device offload data</h2>
+        <div class="add-mode-switcher">
+          <button type="button" class="active" id="queryModeAllBtn" onclick="setQueryMode('all')">All data</button>
+          <button type="button" id="queryModeDaysBtn" onclick="setQueryMode('days')">By days</button>
+          <button type="button" id="queryModeDateBtn" onclick="setQueryMode('date')">By date range</button>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="queryNasId">NAS ID</label>
+            <input type="text" id="queryNasId" placeholder="bcb92300ae0c">
+          </div>
+          <div class="form-group" id="queryDaysGroup" style="display:none;">
+            <label for="queryDays">Days</label>
+            <input type="number" id="queryDays" min="1" max="365" value="30">
+          </div>
+        </div>
+
+        <div class="form-row" id="queryDateRangeFields" style="display:none;">
+          <div class="form-group">
+            <label for="queryStartDate">Start date</label>
+            <input type="date" id="queryStartDate">
+          </div>
+          <div class="form-group">
+            <label for="queryEndDate">End date</label>
+            <input type="date" id="queryEndDate">
+          </div>
+        </div>
+
+        <button class="button success" onclick="fetchOffloadData()" id="fetchBtn">Fetch data</button>
+        <button class="button info" onclick="clearFetchForm()">Clear</button>
+
+        <div class="loading" id="fetchLoading"><span class="spinner"></span>Fetching data...</div>
+        <div class="result" id="fetchResult"></div>
+
+        <div id="summaryGrid" class="summary-grid" style="display:none;"></div>
+
+        <div class="table-wrap" id="dataTableWrap" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>NAS ID</th>
+                <th>Device name</th>
+                <th>Sessions</th>
+                <th>Users</th>
+                <th>Rejects</th>
+                <th>Total GBs</th>
+              </tr>
+            </thead>
+            <tbody id="dataTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="api-info">
+          <h3>Raw API response</h3>
+          <div class="mono" id="rawResponse">No response yet.</div>
+        </div>
+      </div>
+
+      <div class="api-info">
+        <h3>Endpoint reference</h3>
+        <p><strong>Trigger quick scrape:</strong> <code>POST /api/trigger-scrape</code></p>
+        <p><strong>Trigger date-range scrape:</strong> <code>POST /api/trigger-scrape-date</code></p>
+        <p><strong>Fetch offload data:</strong> <code>GET /api/device-offload?nas_id=...</code></p>
+        <p><strong>Fetch by days:</strong> <code>GET /api/device-offload?nas_id=...&days=30</code></p>
+        <p><strong>Fetch by date range:</strong> <code>GET /api/device-offload?nas_id=...&start=YYYY-MM-DD&end=YYYY-MM-DD</code></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let triggerMode = 'quick';
+    let queryMode = 'all';
+
+    function getApiUrl() {
+      return document.getElementById('apiUrl').value.replace(/\/$/, '');
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = String(s ?? '');
+      return div.innerHTML;
+    }
+
+    function showResult(id, message, type = 'info') {
+      const el = document.getElementById(id);
+      el.className = 'result ' + type;
+      el.innerHTML = message ? String(message) : '';
+      el.style.display = message ? 'block' : 'none';
+    }
+
+    function setTriggerMode(mode) {
+      triggerMode = mode;
+      document.getElementById('triggerModeQuickBtn').classList.toggle('active', mode === 'quick');
+      document.getElementById('triggerModeDateBtn').classList.toggle('active', mode === 'date');
+      document.getElementById('dateRangeFields').style.display = mode === 'date' ? 'flex' : 'none';
+      document.getElementById('triggerDaysGroup').style.display = mode === 'quick' ? 'block' : 'none';
+    }
+
+    function setQueryMode(mode) {
+      queryMode = mode;
+      document.getElementById('queryModeAllBtn').classList.toggle('active', mode === 'all');
+      document.getElementById('queryModeDaysBtn').classList.toggle('active', mode === 'days');
+      document.getElementById('queryModeDateBtn').classList.toggle('active', mode === 'date');
+      document.getElementById('queryDaysGroup').style.display = mode === 'days' ? 'block' : 'none';
+      document.getElementById('queryDateRangeFields').style.display = mode === 'date' ? 'flex' : 'none';
+    }
+
+    function clearTriggerForm() {
+      document.getElementById('triggerNasId').value = '';
+      document.getElementById('triggerDays').value = '';
+      document.getElementById('triggerStartDate').value = '';
+      document.getElementById('triggerEndDate').value = '';
+      showResult('triggerResult', '', 'info');
+    }
+
+    function clearFetchForm() {
+      document.getElementById('queryNasId').value = '';
+      document.getElementById('queryDays').value = '30';
+      document.getElementById('queryStartDate').value = '';
+      document.getElementById('queryEndDate').value = '';
+      showResult('fetchResult', '', 'info');
+      document.getElementById('summaryGrid').style.display = 'none';
+      document.getElementById('dataTableWrap').style.display = 'none';
+      document.getElementById('rawResponse').textContent = 'No response yet.';
+    }
+
+    function copyNasToFetch() {
+      document.getElementById('queryNasId').value = document.getElementById('triggerNasId').value.trim();
+      showResult('fetchResult', 'Copied NAS ID from Trigger section.', 'info');
+    }
+
+    async function triggerScrape() {
+      const nasId = document.getElementById('triggerNasId').value.trim();
+      const triggerBtn = document.getElementById('triggerBtn');
+      if (!nasId) {
+        showResult('triggerResult', 'NAS ID is required.', 'error');
+        return;
+      }
+
+      let endpoint = '/api/trigger-scrape';
+      let payload = { nas_id: nasId };
+
+      if (triggerMode === 'date') {
+        const startDate = document.getElementById('triggerStartDate').value;
+        const endDate = document.getElementById('triggerEndDate').value;
+        if (!startDate || !endDate) {
+          showResult('triggerResult', 'Start and end date are required for date range trigger.', 'error');
+          return;
+        }
+        if (new Date(startDate) >= new Date(endDate)) {
+          showResult('triggerResult', 'Start date must be before end date.', 'error');
+          return;
+        }
+        endpoint = '/api/trigger-scrape-date';
+        payload = { nas_id: nasId, start_date: startDate, end_date: endDate };
+      }
+
+      triggerBtn.disabled = true;
+      triggerBtn.textContent = 'Triggering...';
+      showResult('triggerResult', '', 'info');
+
+      try {
+        const res = await fetch(getApiUrl() + endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.success) {
+          showResult(
+            'triggerResult',
+            '<strong>Failed to trigger scrape.</strong><br>' + escapeHtml(data.error || ('HTTP ' + res.status)),
+            'error'
+          );
+          return;
+        }
+
+        const details = data.details || {};
+        showResult(
+          'triggerResult',
+          '<strong>Scrape workflow queued.</strong><br>' +
+            'NAS: <code>' + escapeHtml(details.nas_id || nasId) + '</code><br>' +
+            (details.start_date ? ('Range: ' + escapeHtml(details.start_date) + ' -> ' + escapeHtml(details.end_date) + '<br>') : '') +
+            'Status: ' + escapeHtml(details.status || 'queued') + '<br>' +
+            escapeHtml(data.message || ''),
+          'success'
+        );
+      } catch (error) {
+        showResult('triggerResult', 'Network error: ' + escapeHtml(error.message), 'error');
+      } finally {
+        triggerBtn.disabled = false;
+        triggerBtn.textContent = 'Trigger scrape';
+      }
+    }
+
+    function renderSummary(summary, count, range) {
+      const grid = document.getElementById('summaryGrid');
+      const items = [
+        { label: 'Rows returned', value: Number(count || 0).toLocaleString() },
+        { label: 'Total GBs', value: Number(summary?.total_gbs || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) },
+        { label: 'Total sessions', value: Number(summary?.total_sessions || 0).toLocaleString() },
+        { label: 'Total users', value: Number(summary?.total_users || 0).toLocaleString() },
+        { label: 'Total rejects', value: Number(summary?.total_rejects || 0).toLocaleString() },
+        { label: 'Avg daily GBs', value: Number(summary?.average_daily_gbs || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) },
+        { label: 'Days analyzed', value: Number(summary?.days_analyzed || 0).toLocaleString() },
+        { label: 'Range', value: (range?.start && range?.end) ? (range.start + ' -> ' + range.end) : 'All' }
+      ];
+
+      grid.innerHTML = items.map((item) =>
+        '<div class="summary-card"><div class="value">' + escapeHtml(item.value) +
+        '</div><div class="label">' + escapeHtml(item.label) + '</div></div>'
+      ).join('');
+      grid.style.display = 'grid';
+    }
+
+    function renderDataTable(rows) {
+      const wrap = document.getElementById('dataTableWrap');
+      const body = document.getElementById('dataTableBody');
+      if (!rows || !rows.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;">No data found for this query.</td></tr>';
+        wrap.style.display = 'block';
+        return;
+      }
+
+      body.innerHTML = rows.map((row) => (
+        '<tr>' +
+        '<td>' + escapeHtml(row.transaction_date || '') + '</td>' +
+        '<td>' + escapeHtml(row.nas_id || '') + '</td>' +
+        '<td>' + escapeHtml(row.device_name || '—') + '</td>' +
+        '<td>' + Number(row.total_sessions || 0).toLocaleString() + '</td>' +
+        '<td>' + Number(row.count_of_users || 0).toLocaleString() + '</td>' +
+        '<td>' + Number(row.rejects || 0).toLocaleString() + '</td>' +
+        '<td>' + Number(row.total_gbs || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) + '</td>' +
+        '</tr>'
+      )).join('');
+      wrap.style.display = 'block';
+    }
+
+    async function fetchOffloadData() {
+      const nasId = document.getElementById('queryNasId').value.trim();
+      const fetchBtn = document.getElementById('fetchBtn');
+      const loading = document.getElementById('fetchLoading');
+      if (!nasId) {
+        showResult('fetchResult', 'NAS ID is required.', 'error');
+        return;
+      }
+
+      const params = new URLSearchParams({ nas_id: nasId });
+      if (queryMode === 'days') {
+        const days = document.getElementById('queryDays').value;
+        if (!days || Number(days) <= 0) {
+          showResult('fetchResult', 'Days must be a positive number.', 'error');
+          return;
+        }
+        params.set('days', days);
+      } else if (queryMode === 'date') {
+        const startDate = document.getElementById('queryStartDate').value;
+        const endDate = document.getElementById('queryEndDate').value;
+        if (!startDate || !endDate) {
+          showResult('fetchResult', 'Start and end date are required for date range query.', 'error');
+          return;
+        }
+        if (new Date(startDate) > new Date(endDate)) {
+          showResult('fetchResult', 'Start date cannot be after end date.', 'error');
+          return;
+        }
+        params.set('start', startDate);
+        params.set('end', endDate);
+      }
+
+      fetchBtn.disabled = true;
+      loading.style.display = 'block';
+      showResult('fetchResult', '', 'info');
+
+      try {
+        const url = getApiUrl() + '/api/device-offload?' + params.toString();
+        const res = await fetch(url);
+        const data = await res.json().catch(() => ({}));
+
+        document.getElementById('rawResponse').textContent = JSON.stringify(data, null, 2);
+
+        if (!res.ok) {
+          showResult(
+            'fetchResult',
+            '<strong>Failed to fetch data.</strong><br>' + escapeHtml(data.error || ('HTTP ' + res.status)),
+            'error'
+          );
+          document.getElementById('summaryGrid').style.display = 'none';
+          document.getElementById('dataTableWrap').style.display = 'none';
+          return;
+        }
+
+        showResult(
+          'fetchResult',
+          '<strong>Data fetched successfully.</strong><br>' +
+            'NAS: <code>' + escapeHtml(data.nas_id || nasId) + '</code><br>' +
+            'Rows: ' + Number(data.count || 0).toLocaleString(),
+          'success'
+        );
+
+        renderSummary(data.summary || {}, data.count || 0, data.range || {});
+        renderDataTable(data.data || []);
+      } catch (error) {
+        showResult('fetchResult', 'Network error: ' + escapeHtml(error.message), 'error');
+      } finally {
+        fetchBtn.disabled = false;
+        loading.style.display = 'none';
+      }
+    }
+
+    // Init defaults
+    window.addEventListener('load', () => {
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      document.getElementById('triggerEndDate').value = today.toISOString().split('T')[0];
+      document.getElementById('triggerStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+      document.getElementById('queryEndDate').value = today.toISOString().split('T')[0];
+      document.getElementById('queryStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+      document.getElementById('triggerNasId').focus();
+      setTriggerMode('quick');
+      setQueryMode('all');
+    });
+  </script>
+</body>
+</html>

@@ -1,44 +1,570 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Add Device to Daily Scrape List</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XNET Device Offload - Manage Devices</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --soft: #f3f4f6;
+      --primary: #16a34a;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .content { padding: 18px; }
+    .section { margin-bottom: 18px; }
+    .section:last-child { margin-bottom: 0; }
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .form-group { margin-bottom: 12px; }
+    .form-row .form-group { flex: 1; min-width: 220px; }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .required::after {
+      content: " *";
+      color: #dc2626;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      background: white;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: rgba(37, 99, 235, 0.7);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+    textarea { min-height: 70px; resize: vertical; }
+
+    .hint-text {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .button {
+      appearance: none;
+      border: 1px solid rgba(0,0,0,0);
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .button:hover { filter: brightness(0.97); }
+    .button:active { filter: brightness(0.94); }
+    .button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .button.success { background: var(--success); }
+    .button.info { background: var(--soft); color: var(--text); border-color: var(--border); }
+    .button.danger { background: var(--danger); }
+
+    .result {
+      display: none;
+      margin-top: 12px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 13px;
+    }
+    .result.success { border-color: rgba(22,163,74,0.35); background: rgba(22,163,74,0.08); }
+    .result.error { border-color: rgba(220,38,38,0.35); background: rgba(220,38,38,0.08); }
+    .result.info { border-color: rgba(37,99,235,0.35); background: rgba(37,99,235,0.08); }
+
+    .loading {
+      display: none;
+      margin: 10px 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      background: white;
+    }
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(17,24,39,0.15);
+      border-top-color: rgba(17,24,39,0.5);
+      border-radius: 999px;
+      animation: spin 0.8s linear infinite;
+      vertical-align: -2px;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .section-header-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .device-count-badge {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .device-list {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: white;
+      overflow: hidden;
+    }
+    .device-list.empty-state {
+      padding: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .device-table {
+      display: grid;
+      gap: 0;
+    }
+    .device-row {
+      display: grid;
+      grid-template-columns: minmax(160px, 1.4fr) minmax(130px, 1fr) minmax(140px, 1fr) minmax(220px, 2fr) auto;
+      gap: 8px;
+      align-items: stretch;
+      padding: 8px 10px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .device-row.header {
+      background: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      border-top: none;
+    }
+    .device-cell {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+    .col-device { align-items: flex-start; flex-direction: column; gap: 4px; }
+    .col-status, .col-added { color: var(--muted); font-size: 12px; }
+    .col-actions { justify-content: flex-end; }
+    .device-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    .device-name { font-weight: 700; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .key-pill {
+      display: inline-block;
+      max-width: 100%;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background: var(--soft);
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      border-radius: 10px;
+    }
+    .truncate {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: bottom;
+    }
+    .device-row:not(.header):hover { background: rgba(17,24,39,0.02); }
+    .device-row:not(.header):nth-child(even) { background: rgba(17,24,39,0.01); }
+
+    .status-line {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .status-line.success { color: var(--success); }
+    .status-line.error { color: var(--danger); }
+
+    .api-info {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: white;
+      margin-top: 14px;
+    }
+    .api-info h3 { margin: 0 0 8px; font-size: 14px; }
+    .api-info code {
+      background: var(--soft);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    @media (max-width: 980px) {
+      .device-row {
+        grid-template-columns: minmax(140px, 1fr) minmax(120px, 1fr);
+        grid-template-rows: auto auto auto;
+      }
+      .device-row .col-added,
+      .device-row .col-status,
+      .device-row .col-actions {
+        grid-column: 1 / -1;
+      }
+      .col-actions { justify-content: flex-start; }
+      .device-actions { justify-content: flex-start; }
+    }
+  </style>
 </head>
 <body>
-    <h2>Add Device to Daily Scrape List</h2>
-    <form id="deviceForm">
-        <p>NAS ID: <input type="text" id="nas_id" placeholder="bcb92300ae0c" required></p>
-        <p>Device Name: <input type="text" id="device_name" placeholder="Office Device"></p>
-        <p>Description: <input type="text" id="description" placeholder="Device description"></p>
-        <p>Notes: <input type="text" id="notes" placeholder="Tracking notes"></p>
-        <button type="submit">Add to Daily Scrape List</button>
-    </form>
-    
-    <div id="result"></div>
+  <div class="container">
+    <div class="header">
+      <h1>XNET Device Offload</h1>
+      <p>Device management (daily scrape list)</p>
+    </div>
 
-    <script>
-        document.getElementById('deviceForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const data = {
-                nas_id: document.getElementById('nas_id').value,
-                device_name: document.getElementById('device_name').value,
-                description: document.getElementById('description').value,
-                notes: document.getElementById('notes').value
-            };
-            
-            try {
-                const response = await fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
-            } catch (error) {
-                document.getElementById('result').innerHTML = 'Error: ' + error.message;
-            }
+    <div class="content">
+      <div class="section">
+        <h2>API Configuration</h2>
+        <div class="form-group">
+          <label for="apiUrl">API Base URL</label>
+          <input type="url" id="apiUrl" value="https://xnet-device-offload-scraper.vercel.app" placeholder="https://your-api-domain.vercel.app">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Add tracked device</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="nas_id" class="required">NAS ID</label>
+            <input type="text" id="nas_id" placeholder="bcb92300ae0c" autocomplete="off">
+            <p class="hint-text">Required. Primary identifier for the device.</p>
+          </div>
+          <div class="form-group">
+            <label for="device_name">Device Name (optional)</label>
+            <input type="text" id="device_name" placeholder="Office Device" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <input type="text" id="description" placeholder="Device description" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="notes">Tracking Notes (optional)</label>
+            <input type="text" id="notes" placeholder="Tracking notes" autocomplete="off">
+          </div>
+        </div>
+
+        <button class="button success" id="addDeviceBtn">Add device</button>
+        <button class="button info" id="clearFormBtn">Clear</button>
+
+        <div class="result" id="formResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-header-row">
+          <div style="display:flex; gap:8px; align-items:baseline;">
+            <div style="font-weight:700;">Tracked devices</div>
+            <div class="device-count-badge" id="deviceCount">(0 devices)</div>
+          </div>
+          <div class="toolbar">
+            <button class="button info" id="refreshBtn">Refresh</button>
+          </div>
+        </div>
+
+        <div class="loading" id="devicesLoading">
+          <span class="spinner"></span>
+          Loading devices...
+        </div>
+
+        <div class="device-list empty-state" id="deviceList">No tracked devices loaded yet.</div>
+        <div class="status-line" id="devicesStatus"></div>
+      </div>
+
+      <div class="api-info">
+        <h3>API usage</h3>
+        <p><strong>List tracked devices:</strong> <code>GET /api/manage-devices</code></p>
+        <p><strong>Add tracked device:</strong> <code>POST /api/manage-devices</code></p>
+        <p><strong>Remove tracked device:</strong> <code>DELETE /api/manage-devices?nas_id=&lt;id&gt;</code></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function getApiUrl() {
+      return document.getElementById('apiUrl').value.replace(/\/$/, '');
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = String(s ?? '');
+      return div.innerHTML;
+    }
+
+    function showResult(message, type = 'success') {
+      const result = document.getElementById('formResult');
+      result.className = 'result ' + type;
+      result.innerHTML = String(message || '');
+      result.style.display = message ? 'block' : 'none';
+      if (type === 'success') {
+        setTimeout(() => {
+          result.style.display = 'none';
+        }, 8000);
+      }
+    }
+
+    function setDevicesStatus(message, type = '') {
+      const el = document.getElementById('devicesStatus');
+      el.className = 'status-line' + (type ? ' ' + type : '');
+      el.textContent = message || '';
+    }
+
+    function formatDate(value) {
+      if (!value) return 'Never';
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return String(value);
+      return d.toLocaleString();
+    }
+
+    function formatNum(value) {
+      const n = Number(value || 0);
+      return n.toLocaleString();
+    }
+
+    async function addDevice() {
+      const nasId = document.getElementById('nas_id').value.trim();
+      const deviceName = document.getElementById('device_name').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const notes = document.getElementById('notes').value.trim();
+
+      if (!nasId) {
+        showResult('NAS ID is required.', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(getApiUrl() + '/api/manage-devices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nas_id: nasId,
+            device_name: deviceName || undefined,
+            description: description || undefined,
+            notes: notes || undefined
+          })
         });
-    </script>
+
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showResult('Failed to add device: ' + escapeHtml(payload.error || ('HTTP ' + res.status)), 'error');
+          return;
+        }
+
+        showResult(payload.message || 'Device added successfully.', 'success');
+        document.getElementById('nas_id').value = '';
+        document.getElementById('device_name').value = '';
+        document.getElementById('description').value = '';
+        document.getElementById('notes').value = '';
+        await loadDevices();
+      } catch (error) {
+        showResult('Network error: ' + escapeHtml(error.message), 'error');
+      }
+    }
+
+    async function removeDevice(nasId) {
+      if (!nasId) return;
+      if (!window.confirm('Remove "' + nasId + '" from daily scrape list?')) return;
+
+      setDevicesStatus('Removing device...', '');
+      try {
+        const res = await fetch(getApiUrl() + '/api/manage-devices?nas_id=' + encodeURIComponent(nasId), {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setDevicesStatus('Failed to remove: ' + (payload.error || ('HTTP ' + res.status)), 'error');
+          return;
+        }
+        setDevicesStatus(payload.message || 'Device removed.', 'success');
+        await loadDevices();
+      } catch (error) {
+        setDevicesStatus('Network error: ' + error.message, 'error');
+      }
+    }
+
+    function renderDevices(devices) {
+      const deviceList = document.getElementById('deviceList');
+      const countEl = document.getElementById('deviceCount');
+      const n = devices.length;
+      countEl.textContent = '(' + n + ' device' + (n === 1 ? '' : 's') + ')';
+
+      if (!n) {
+        deviceList.className = 'device-list empty-state';
+        deviceList.textContent = 'No tracked devices.';
+        return;
+      }
+
+      deviceList.className = 'device-list';
+      const header = `
+        <div class="device-table">
+          <div class="device-row header">
+            <div class="device-cell col-device">Device</div>
+            <div class="device-cell col-added">Added</div>
+            <div class="device-cell col-status">Status</div>
+            <div class="device-cell">Summary</div>
+            <div class="device-cell col-actions">Actions</div>
+          </div>
+      `;
+
+      const rows = devices.map((device) => {
+        const summary = device.summary || {};
+        const summaryText =
+          'Sessions: ' + formatNum(summary.total_sessions) +
+          ' | Users: ' + formatNum(summary.total_users) +
+          ' | Rejects: ' + formatNum(summary.total_rejects) +
+          ' | GBs: ' + formatNum(summary.total_gbs);
+
+        const notes = device.tracking_notes ? ('<div class="muted">Notes: ' + escapeHtml(device.tracking_notes) + '</div>') : '';
+        return `
+          <div class="device-row">
+            <div class="device-cell col-device">
+              <div class="device-name">${escapeHtml(device.device_name || 'Unnamed')}</div>
+              <span class="key-pill truncate" title="${escapeHtml(device.nas_id || '')}">${escapeHtml(device.nas_id || '')}</span>
+              ${notes}
+            </div>
+            <div class="device-cell col-added">${escapeHtml(formatDate(device.added_to_tracked_at))}</div>
+            <div class="device-cell col-status">Last scraped: ${escapeHtml(formatDate(device.last_scraped))}</div>
+            <div class="device-cell muted">${escapeHtml(summaryText)}</div>
+            <div class="device-cell col-actions">
+              <div class="device-actions">
+                <button class="button danger" data-remove="${escapeHtml(device.nas_id || '')}">Remove</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      deviceList.innerHTML = header + rows + '</div>';
+
+      deviceList.querySelectorAll('[data-remove]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          removeDevice(btn.getAttribute('data-remove'));
+        });
+      });
+    }
+
+    async function loadDevices() {
+      const loading = document.getElementById('devicesLoading');
+      loading.style.display = 'block';
+      setDevicesStatus('', '');
+      try {
+        const res = await fetch(getApiUrl() + '/api/manage-devices');
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setDevicesStatus('Failed to load devices: ' + (payload.error || ('HTTP ' + res.status)), 'error');
+          document.getElementById('deviceList').className = 'device-list empty-state';
+          document.getElementById('deviceList').textContent = 'Could not load devices.';
+          return;
+        }
+
+        renderDevices(payload.devices || []);
+        if (payload.message) {
+          setDevicesStatus(payload.message, '');
+        }
+      } catch (error) {
+        setDevicesStatus('Network error: ' + error.message, 'error');
+        document.getElementById('deviceList').className = 'device-list empty-state';
+        document.getElementById('deviceList').textContent = 'Could not load devices.';
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    function clearForm() {
+      document.getElementById('nas_id').value = '';
+      document.getElementById('device_name').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('notes').value = '';
+      showResult('', 'info');
+    }
+
+    document.getElementById('addDeviceBtn').addEventListener('click', addDevice);
+    document.getElementById('refreshBtn').addEventListener('click', loadDevices);
+    document.getElementById('clearFormBtn').addEventListener('click', clearForm);
+
+    window.addEventListener('load', () => {
+      document.getElementById('nas_id').focus();
+      loadDevices();
+    });
+  </script>
 </body>
 </html>
