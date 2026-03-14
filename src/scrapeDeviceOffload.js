@@ -8,7 +8,6 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const { pauseForDebug } = require('./debugStepPause');
 
 const downloadDir = path.resolve(__dirname, '..', 'downloads');
 if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
