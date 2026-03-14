@@ -16,7 +16,7 @@ if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
 const ARROWDOWN_PRESSES = 11;          // matches your working script
 const PRE_CLICK_DELAY_MS = 1000;       // give UI time to bind download
 const POST_CLICK_POLL_MS = 100;        // poll interval
-const POST_CLICK_MAX_MS = 10000;       // total wait after click (10s)
+const POST_CLICK_MAX_MS = 20000;       // total wait after click (20s)
 
 async function scrapeDeviceOffload(nasId) {
   if (!nasId) {
