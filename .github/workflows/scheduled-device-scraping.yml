@@ -58,7 +58,7 @@ jobs:
           DEVICES_LABEL="tracked_devices"
         fi
 
-        BATCHES_JSON=$(npm run --silent scrape:scheduled -- manifest 10 "$MANUAL_DEVICES")
+        BATCHES_JSON=$(node src/scheduledDeviceScrape.js manifest 10 "$MANUAL_DEVICES")
         BATCH_COUNT=$(node -e "const batches = JSON.parse(process.argv[1]); process.stdout.write(String(batches.length));" "$BATCHES_JSON")
 
         echo "mode=$MODE" >> $GITHUB_OUTPUT
