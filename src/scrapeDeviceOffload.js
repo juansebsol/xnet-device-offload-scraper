@@ -27,12 +27,8 @@ async function scrapeDeviceOffload(nasId) {
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
-
-  let fileUrl = '';
-  let filename = '';
-  let capturedResponse = null;
 
   try {
     console.log('🚀 Starting device offload scraper...');
@@ -144,55 +140,24 @@ async function scrapeDeviceOffload(nasId) {
     console.log('✅ CSV format selected');
 
 
+    // Download the exported CSV using Playwright's download API so the
+    // downstream parse/upsert pipeline still receives csvText/filename/fullPath.
+    const downloadPromise = page1.waitForEvent('download', { timeout: POST_CLICK_MAX_MS });
+
     //Download button click sequence
     await frame.locator('text=Format').click();
     await frame.locator('#qr-export-modal-download').click();
-
-
-
-
-    // Poll for fileUrl (instead of fixed 3s)
-    console.log('⏳ Polling for file URL...');
-    const start = Date.now();
-    while (!fileUrl && Date.now() - start < POST_CLICK_MAX_MS) {
-      await page1.waitForTimeout(POST_CLICK_POLL_MS);
-      console.log(`⏳ Still waiting... (${Date.now() - start}ms elapsed)`);
-    }
-
-    if (!fileUrl) {
-      throw new Error('❌ No valid file detected (timeout waiting for download response).');
-    }
-    console.log('✅ File URL detected successfully');
-
-    // Use capturedResponse if we have it; else fetch fileUrl
-    console.log('📥 Reading file content...');
-    let csvText;
-    try {
-      if (capturedResponse) {
-        // Use Playwright's response body (safer; avoids re-fetch auth issues)
-        console.log('📥 Reading from captured response...');
-        const bodyBuffer = await capturedResponse.body();
-        csvText = bodyBuffer.toString('utf8');
-        console.log('✅ File content read from captured response');
-      } else {
-        // fallback GET via context request
-        console.log('📥 Fetching file via network request...');
-        const resp = await page1.request.get(fileUrl);
-        csvText = await resp.text();
-        console.log('✅ File content fetched via network request');
-      }
-    } catch (err) {
-      console.warn('⚠️ Could not read captured response body; fallback network GET', err);
-      console.log('📥 Using fallback network request...');
-      const resp = await page1.request.get(fileUrl);
-      csvText = await resp.text();
-      console.log('✅ File content read via fallback method');
-    }
-
-    // Save to disk
-    console.log('💾 Saving file to disk...');
+    
+    const download = await downloadPromise;
+    const filename = download.suggestedFilename() || `device-offload-${Date.now()}.csv`;
     const fullPath = path.join(downloadDir, filename);
-    fs.writeFileSync(fullPath, csvText, 'utf-8');
+
+    console.log('💾 Saving file to disk...');
+    await download.saveAs(fullPath);
+    console.log('✅ File downloaded successfully:', fullPath);
+
+    console.log('📥 Reading file content...');
+    const csvText = fs.readFileSync(fullPath, 'utf-8');
 
     console.log('✅ File saved successfully:', fullPath);
     console.log('📊 Preview:\n', csvText.substring(0, 500));
