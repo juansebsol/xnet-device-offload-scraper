@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
+const { pauseForDebug } = require('./debugStepPause');
 
 const downloadDir = path.resolve(__dirname, '..', 'downloads');
 if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
@@ -24,7 +25,7 @@ async function scrapeDeviceOffload(nasId) {
   }
 
   const browser = await chromium.launch({
-    headless: true,
+    headless: false,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
   const context = await browser.newContext();
@@ -97,25 +98,12 @@ async function scrapeDeviceOffload(nasId) {
     await page1.waitForSelector('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1', { timeout: 10000 });
     console.log('✅ NASID dropdown appeared');
 
-    // Click on the dropdown option - use a more specific selector to avoid multiple matches
-    console.log('📋 Clicking NASID dropdown option...');
+    //fix March 12th 2026 For Drop Down Selection
+    await page1.locator('div.sd-multi-auto-complete-option[value="FLKW"]').click();
+
+    console.log('Drop Down Selection Completed');
     
-    // Wait for the NASID dropdown to be more specific
-    await page1.waitForTimeout(500);
-    
-    // Try to find the NASID dropdown specifically by looking for elements that contain NASID-related text
-    const nasidDropdownOption = await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1')
-      .filter({ hasText: /NASID|nasid/i })
-      .first();
-    
-    if (await nasidDropdownOption.count() > 0) {
-      await nasidDropdownOption.click();
-      console.log('✅ NASID dropdown option clicked (filtered)');
-    } else {
-      // Fallback: click the first dropdown option if no NASID-specific one found
-      await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1').first().click();
-      console.log('✅ NASID dropdown option clicked (fallback to first)');
-    }
+
 
     // Wait for the input field to appear and fill in the NASID
     console.log('✏️ Waiting for NASID text input...');
@@ -149,104 +137,20 @@ async function scrapeDeviceOffload(nasId) {
     console.log('⬇️ Clicking Download data...');
     await frame.getByRole('menuitem', { name: 'Download data' }).click();
     console.log('✅ Download data clicked successfully');
+
     
-    // Select CSV format
-    console.log('📊 Selecting CSV format...');
-    await frame.getByRole('combobox', { name: 'Format combobox' }).locator('div').nth(1).click();
-    console.log('✅ Format combobox clicked');
-    
+    //Open format dropdown and select CSV
+    await frame.locator('#listbox-input-qr-export-modal-format').click();
     await frame.getByRole('option', { name: 'CSV' }).click();
     console.log('✅ CSV format selected');
 
-    // Capture attachment response
-    page1.on('response', async (response) => {
-      try {
-        const headers = response.headers();
-        const disposition = headers['content-disposition'] || '';
-        const contentType = headers['content-type'] || '';
-        if (
-          response.status() === 200 &&
-          disposition.includes('attachment') &&
-          (contentType.includes('csv') || contentType.includes('text'))
-        ) {
-          fileUrl = response.url();
-          const match = disposition.match(/filename="(.+?)"/);
-          filename = match?.[1] || 'device_offload.csv';
-          capturedResponse = response;
-          console.log('✅ Correct file detected:', filename);
-        }
-      } catch (e) {
-        console.error('⚠️ Error parsing response:', e);
-      }
-    });
 
-    // extra pre-click pause (your working script)
-    console.log(`⏳ Waiting ${PRE_CLICK_DELAY_MS}ms before download click...`);
-    await page1.waitForTimeout(PRE_CLICK_DELAY_MS);
+    //Download button click sequence
+    await frame.locator('text=Format').click();
+    await frame.locator('#qr-export-modal-download').click();
 
-    // FIXED: Handle viewport issue with download button
-    console.log('🔧 Fixing viewport issue with download button...');
-    
-    // Since we know Method 2 (JavaScript) worked, let's try it first
-    let downloadClicked = false;
-    
-    // Method 1: Try JavaScript click first (this was the working method)
-    try {
-      console.log('🔄 Method 1: Attempting JavaScript click (this method succeeded before)...');
-      await frame.evaluate(() => {
-        const downloadBtn = document.querySelector('#qr-export-modal-download');
-        if (downloadBtn) {
-          downloadBtn.click();
-          return true;
-        }
-        return false;
-      });
-      console.log('✅ Download button clicked successfully via JavaScript method (this was the working method)');
-      downloadClicked = true;
-    } catch (jsError) {
-      console.log('⚠️ JavaScript method failed, trying scroll method...');
-      console.log('📝 JavaScript error details:', jsError.message);
-      
-      // Method 2: Try to scroll the button into view as fallback
-      try {
-        console.log('🔄 Method 2: Attempting to scroll button into view...');
-        const btn = await frame.locator('#qr-export-modal-download');
-        
-        // Scroll the button into view
-        await btn.scrollIntoViewIfNeeded();
-        console.log('✅ Button scrolled into view successfully');
-        
-        // Wait a moment for the scroll to complete
-        await frame.waitForTimeout(500);
-        
-        // Try clicking
-        await btn.click();
-        console.log('✅ Download button clicked successfully via scroll method');
-        downloadClicked = true;
-      } catch (scrollError) {
-        console.log('⚠️ Scroll method failed, trying keyboard navigation...');
-        console.log('📝 Scroll error details:', scrollError.message);
-        
-        // Method 3: Use keyboard navigation as last resort
-        try {
-          console.log('🔄 Method 3: Attempting keyboard navigation...');
-          // Press Tab to focus the button, then Enter to click
-          await frame.keyboard.press('Tab');
-          await frame.waitForTimeout(200);
-          await frame.keyboard.press('Enter');
-          console.log('✅ Download button activated successfully via keyboard method');
-          downloadClicked = true;
-        } catch (keyboardError) {
-          console.log('❌ All click methods failed');
-          console.log('📝 Keyboard error details:', keyboardError.message);
-          throw new Error(`All click methods failed: ${keyboardError.message}`);
-        }
-      }
-    }
-    
-    if (!downloadClicked) {
-      throw new Error('Failed to click download button with any method');
-    }
+
+
 
     // Poll for fileUrl (instead of fixed 3s)
     console.log('⏳ Polling for file URL...');
