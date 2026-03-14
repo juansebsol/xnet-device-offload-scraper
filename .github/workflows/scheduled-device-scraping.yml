@@ -20,9 +20,14 @@ on:
         default: false
 
 jobs:
-  scrape-devices:
+  prepare-batches:
     runs-on: ubuntu-latest
-    
+    outputs:
+      batches: ${{ steps.batch-manifest.outputs.batches }}
+      batch_count: ${{ steps.batch-manifest.outputs.batch_count }}
+      mode: ${{ steps.batch-manifest.outputs.mode }}
+      devices_label: ${{ steps.batch-manifest.outputs.devices_label }}
+
     steps:
     - name: 🚀 Checkout code
       uses: actions/checkout@v4
@@ -38,92 +43,111 @@ jobs:
       
     - name: 🎯 Set up environment
       run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
+        echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> $GITHUB_ENV
+      
+    - name: 🔍 Build batch manifest
+      id: batch-manifest
+      run: |
+        MANUAL_DEVICES="${{ github.event.inputs.devices }}"
+        if [ -n "$MANUAL_DEVICES" ]; then
+          MODE="manual"
+          DEVICES_LABEL="$MANUAL_DEVICES"
+        else
+          MODE="scheduled"
+          DEVICES_LABEL="tracked_devices"
+        fi
+
+        BATCHES_JSON=$(npm run --silent scrape:scheduled -- manifest 10 "$MANUAL_DEVICES")
+        BATCH_COUNT=$(node -e "const batches = JSON.parse(process.argv[1]); process.stdout.write(String(batches.length));" "$BATCHES_JSON")
+
+        echo "mode=$MODE" >> $GITHUB_OUTPUT
+        echo "devices_label=$DEVICES_LABEL" >> $GITHUB_OUTPUT
+        echo "batch_count=$BATCH_COUNT" >> $GITHUB_OUTPUT
+        echo "batches<<EOF" >> $GITHUB_OUTPUT
+        echo "$BATCHES_JSON" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: 📋 Show batch plan
+      run: |
+        echo "🔄 Mode: ${{ steps.batch-manifest.outputs.mode }}"
+        echo "🎯 Devices source: ${{ steps.batch-manifest.outputs.devices_label }}"
+        echo "📦 Batch count: ${{ steps.batch-manifest.outputs.batch_count }}"
+        echo "📋 Batch manifest: ${{ steps.batch-manifest.outputs.batches }}"
+
+  scrape-batches:
+    needs: prepare-batches
+    if: ${{ needs.prepare-batches.outputs.batch_count != '0' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        batch: ${{ fromJson(needs.prepare-batches.outputs.batches) }}
+
+    steps:
+    - name: 🚀 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: 🔧 Install dependencies
+      run: npm ci
+
+    - name: 🎯 Set up environment
+      run: |
         echo "OKTA_START_URL=${{ secrets.OKTA_START_URL }}" >> $GITHUB_ENV
         echo "OKTA_EMAIL=${{ secrets.OKTA_EMAIL }}" >> $GITHUB_ENV
         echo "OKTA_PASSWORD=${{ secrets.OKTA_PASSWORD }}" >> $GITHUB_ENV
         echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
         echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> $GITHUB_ENV
-        
+
     - name: 🎭 Install Playwright browsers
       run: npx playwright install --with-deps chromium
-      
-    - name: 🔍 Determine devices to scrape
-      id: devices
+
+    - name: 🚀 Run scheduled device scraping batch
       run: |
-        if [ -n "${{ github.event.inputs.devices }}" ]; then
-          # Use manually specified devices
-          echo "devices=${{ github.event.inputs.devices }}" >> $GITHUB_OUTPUT
-          echo "mode=manual"
-        else
-          # Use all configured devices
-          echo "devices=all" >> $GITHUB_OUTPUT
-          echo "mode=scheduled"
-        fi
-        echo "mode=${{ github.event.inputs.devices != '' && 'manual' || 'scheduled' }}" >> $GITHUB_OUTPUT
-        
-    - name: 📋 Show device list
-      run: |
-        echo "📱 Devices to scrape: ${{ steps.devices.outputs.devices }}"
-        echo "🔄 Mode: ${{ steps.devices.outputs.mode }}"
-        echo ""
-        if [ "${{ steps.devices.outputs.devices }}" = "all" ]; then
-          echo "📋 Current configured devices:"
-          npm run device:list
-        else
-          echo "🎯 Manual devices: ${{ steps.devices.outputs.devices }}"
-        fi
-        
-    - name: 🚀 Run scheduled device scraping
-      run: |
-        if [ "${{ steps.devices.outputs.devices }}" = "all" ]; then
-          echo "🔄 Running scheduled scraping for all configured devices..."
-          npm run scrape:scheduled all
-        else
-          echo "🎯 Running manual scraping for specified devices..."
-          # Split comma-separated devices and scrape each one
-          IFS=',' read -ra DEVICES <<< "${{ steps.devices.outputs.devices }}"
-          for device in "${DEVICES[@]}"; do
-            device=$(echo "$device" | xargs)  # trim whitespace
-            if [ -n "$device" ]; then
-              echo "📱 Scraping device: $device"
-              npm run scrape:device "$device"
-              echo "⏳ Waiting 10 seconds before next device..."
-              sleep 10
-            fi
-          done
-        fi
-        
+        echo "🔄 Mode: ${{ needs.prepare-batches.outputs.mode }}"
+        echo "📦 Batch index: ${{ matrix.batch.batch_index }}"
+        echo "📱 Batch devices: ${{ matrix.batch.devices_csv }}"
+        echo "📊 Device count: ${{ matrix.batch.device_count }}"
+
+        npm run --silent scrape:scheduled -- batch "${{ matrix.batch.devices_csv }}" 5000
+
     - name: 📋 Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: scheduled-device-scraping-${{ github.run_id }}
+        name: scheduled-device-scraping-batch-${{ matrix.batch.batch_index }}-${{ github.run_id }}
         path: |
           downloads/
         retention-days: 7
-        
-    - name: 📊 Summary
+
+    - name: 📊 Batch summary
       run: |
-        echo "🎉 Scheduled device offload scraping completed!"
-        echo "🔄 Mode: ${{ steps.devices.outputs.mode }}"
-        echo "🎯 Devices: ${{ steps.devices.outputs.devices }}"
+        echo "🎉 Batch scraping completed!"
+        echo "🔄 Mode: ${{ needs.prepare-batches.outputs.mode }}"
+        echo "📦 Batch index: ${{ matrix.batch.batch_index }}"
+        echo "🎯 Devices: ${{ matrix.batch.devices_csv }}"
         echo "📁 Artifacts uploaded"
         echo "⏰ Completed at: $(date)"
         
   # Optional: Add a job to notify external systems
   notify-completion:
-    needs: scrape-devices
+    needs: [prepare-batches, scrape-batches]
     runs-on: ubuntu-latest
     if: always()
     
     steps:
     - name: 📢 Notify completion
       run: |
-        if [ "${{ needs.scrape-devices.result }}" = "success" ]; then
+        if [ "${{ needs.prepare-batches.outputs.batch_count }}" = "0" ]; then
+          echo "ℹ️ No active devices found to scrape"
+        elif [ "${{ needs.scrape-batches.result }}" = "success" ]; then
           echo "✅ Scheduled scraping completed successfully"
-          # Add webhook notifications here if needed
-          # Example: curl -X POST $WEBHOOK_URL -d '{"status":"success"}'
         else
           echo "❌ Scheduled scraping failed"
-          # Add failure notifications here if needed
-          # Example: curl -X POST $WEBHOOK_URL -d '{"status":"failed"}'
         fi
