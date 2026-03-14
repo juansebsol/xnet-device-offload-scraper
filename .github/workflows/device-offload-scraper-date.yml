@@ -61,18 +61,25 @@ jobs:
       id: params
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "nas_id=${{ github.event.inputs.nas_id }}" >> $GITHUB_OUTPUT
-          echo "start_date=${{ github.event.inputs.start_date }}" >> $GITHUB_OUTPUT
-          echo "end_date=${{ github.event.inputs.end_date }}" >> $GITHUB_OUTPUT
+          CURRENT_NAS_ID="${{ github.event.inputs.nas_id }}"
+          CURRENT_START_DATE="${{ github.event.inputs.start_date }}"
+          CURRENT_END_DATE="${{ github.event.inputs.end_date }}"
         elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-          echo "nas_id=${{ github.event.client_payload.nas_id }}" >> $GITHUB_OUTPUT
-          echo "start_date=${{ github.event.client_payload.start_date }}" >> $GITHUB_OUTPUT
-          echo "end_date=${{ github.event.client_payload.end_date }}" >> $GITHUB_OUTPUT
+          CURRENT_NAS_ID="${{ github.event.client_payload.nas_id }}"
+          CURRENT_START_DATE="${{ github.event.client_payload.start_date }}"
+          CURRENT_END_DATE="${{ github.event.client_payload.end_date }}"
         else
-          echo "nas_id=94:2a:6f:c6:3b:ac" >> $GITHUB_OUTPUT
-          echo "start_date=2025-07-01" >> $GITHUB_OUTPUT
-          echo "end_date=2025-07-30" >> $GITHUB_OUTPUT
+          CURRENT_NAS_ID="94:2a:6f:c6:3b:ac"
+          CURRENT_START_DATE="2025-07-01"
+          CURRENT_END_DATE="2025-07-30"
         fi
+
+        echo "nas_id=$CURRENT_NAS_ID" >> $GITHUB_OUTPUT
+        echo "start_date=$CURRENT_START_DATE" >> $GITHUB_OUTPUT
+        echo "end_date=$CURRENT_END_DATE" >> $GITHUB_OUTPUT
+
+        SANITIZED_NAS_ID="$(printf '%s' "$CURRENT_NAS_ID" | sed 's/[^A-Za-z0-9]//g')"
+        echo "sanitized_nas_id=$SANITIZED_NAS_ID" >> $GITHUB_OUTPUT
         
     - name: 🚀 Run device offload scraper with date range
       run: |
@@ -167,7 +174,7 @@ jobs:
     - name: 📋 Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: device-offload-date-data-${{ steps.params.outputs.nas_id }}-${{ steps.params.outputs.start_date }}-to-${{ steps.params.outputs.end_date }}-${{ github.run_id }}
+        name: device-offload-date-data-${{ steps.params.outputs.sanitized_nas_id }}-${{ steps.params.outputs.start_date }}-to-${{ steps.params.outputs.end_date }}-${{ github.run_id }}
         path: |
           downloads/
         retention-days: 7
