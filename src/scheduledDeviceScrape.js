@@ -274,7 +274,7 @@ async function listTrackedDevices() {
 
 // convenience direct-run
 if (require.main === module) {
-  require('dotenv').config();
+  require('dotenv').config({ quiet: true });
   const command = process.argv[2];
 
   if (!command) {
