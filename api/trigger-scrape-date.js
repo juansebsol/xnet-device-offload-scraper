@@ -3,6 +3,8 @@
 // Triggers the device offload scraper for a specific NAS ID with custom date range
 // This endpoint is designed to be called by GitHub Actions or external systems
 
+const { normalizeNasId } = require('../src/nasIdUtils');
+
 module.exports = async (req, res) => {
   // Basic CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,7 +14,8 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { nas_id, start_date, end_date } = req.body;
+    const nas_id = normalizeNasId(req.body?.nas_id);
+    const { start_date, end_date } = req.body;
 
     // Validate required parameters
     if (!nas_id) {

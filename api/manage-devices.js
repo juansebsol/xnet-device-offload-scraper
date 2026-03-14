@@ -6,6 +6,10 @@
 // DELETE /api/manage-devices/:id - Delete device
 
 const { supabase } = require('./_supabase');
+const {
+  normalizeNasId,
+  normalizeDeviceType,
+} = require('../src/nasIdUtils');
 
 module.exports = async (req, res) => {
   // Basic CORS
@@ -75,6 +79,7 @@ async function handleGetDevices(req, res) {
       return {
         id: device.id,
         nas_id: device.nas_id,
+        device_type: device.device_type,
         device_name: device.device_name,
         description: device.description,
         is_active: device.is_active,
@@ -98,10 +103,18 @@ async function handleGetDevices(req, res) {
 }
 
 async function handleCreateDevice(req, res) {
-  const { nas_id, device_name, description, notes } = req.body;
+  const { nas_id, device_type, device_name, description, notes } = req.body;
+  const normalizedNasId = normalizeNasId(nas_id);
+  const normalizedDeviceType = normalizeDeviceType(device_type);
 
-  if (!nas_id) {
+  if (!normalizedNasId) {
     return res.status(400).json({ error: 'nas_id is required' });
+  }
+
+  if (!normalizedDeviceType) {
+    return res.status(400).json({
+      error: 'device_type is required and must be one of: cambium, ruckus, ubiquiti, alta',
+    });
   }
 
   try {
@@ -109,18 +122,35 @@ async function handleCreateDevice(req, res) {
     let deviceId;
     const { data: existingDevice } = await supabase
       .from('devices')
-      .select('id')
-      .eq('nas_id', nas_id)
+      .select('id, device_type')
+      .eq('nas_id', normalizedNasId)
       .single();
 
     if (existingDevice) {
       deviceId = existingDevice.id;
+      if (existingDevice.device_type !== normalizedDeviceType) {
+        const { error: updateDeviceError } = await supabase
+          .from('devices')
+          .update({
+            device_type: normalizedDeviceType,
+            device_name: device_name || undefined,
+            description: description || undefined,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', deviceId);
+
+        if (updateDeviceError) {
+          console.error('Device update error:', updateDeviceError);
+          return res.status(500).json({ error: 'Failed to update existing device type' });
+        }
+      }
     } else {
       // Create device if it doesn't exist
       const { data: newDevice, error: createError } = await supabase
         .from('devices')
         .insert({
-          nas_id,
+          nas_id: normalizedNasId,
+          device_type: normalizedDeviceType,
           device_name: device_name || `Device ${nas_id}`,
           description,
           is_active: true
@@ -139,7 +169,7 @@ async function handleCreateDevice(req, res) {
     const { data: trackedDevice, error: trackError } = await supabase
       .from('tracked_devices')
       .insert({
-        nas_id,
+        nas_id: normalizedNasId,
         notes: notes || null
       })
       .select()
@@ -153,7 +183,8 @@ async function handleCreateDevice(req, res) {
     res.status(201).json({
       message: 'Device added to daily scrape list successfully',
       device: {
-        nas_id,
+        nas_id: normalizedNasId,
+        device_type: normalizedDeviceType,
         device_name: device_name || `Device ${nas_id}`,
         description,
         added_to_tracked_at: trackedDevice.added_to_tracked_at,
@@ -170,9 +201,9 @@ async function handleCreateDevice(req, res) {
 // async function handleUpdateDevice(req, res) { ... }
 
 async function handleDeleteDevice(req, res) {
-  const { nas_id } = req.query;
+  const normalizedNasId = normalizeNasId(req.query.nas_id);
 
-  if (!nas_id) {
+  if (!normalizedNasId) {
     return res.status(400).json({ error: 'nas_id parameter is required' });
   }
 
@@ -180,7 +211,7 @@ async function handleDeleteDevice(req, res) {
   const { error } = await supabase
     .from('tracked_devices')
     .delete()
-    .eq('nas_id', nas_id);
+    .eq('nas_id', normalizedNasId);
 
   if (error) {
     console.error('Delete error:', error);
@@ -188,7 +219,7 @@ async function handleDeleteDevice(req, res) {
   }
 
   res.status(200).json({
-    message: `Device ${nas_id} removed from daily scrape list successfully`,
+    message: `Device ${normalizedNasId} removed from daily scrape list successfully`,
     note: 'Device data remains in database and can be manually scraped'
   });
 }

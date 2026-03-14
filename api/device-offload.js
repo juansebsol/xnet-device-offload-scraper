@@ -5,6 +5,7 @@
 
 const { supabase } = require('./_supabase');
 const { isoDate, startDateFromDays } = require('./_util');
+const { normalizeNasId } = require('../src/nasIdUtils');
 
 module.exports = async (req, res) => {
   // Basic CORS (public read); tighten if needed
@@ -14,7 +15,8 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { nas_id, days, start, end } = req.query;
+  const { days, start, end } = req.query;
+  const nas_id = normalizeNasId(req.query.nas_id);
 
   // NAS ID is required
   if (!nas_id) {

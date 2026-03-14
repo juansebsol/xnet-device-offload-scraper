@@ -13,6 +13,7 @@ set search_path = public;
 create table if not exists devices (
   id bigserial primary key,
   nas_id text not null unique,
+  device_type text,
   device_name text,
   description text,
   is_active boolean not null default true,
@@ -20,9 +21,13 @@ create table if not exists devices (
   updated_at timestamptz not null default now()
 );
 
+-- Ensure existing databases gain the new column too
+alter table devices add column if not exists device_type text;
+
 -- Add comments
 comment on table devices is 'Master device registry - parent table for device offload data.';
 comment on column devices.nas_id is 'Network Access Server ID (unique device identifier).';
+comment on column devices.device_type is 'Vendor/device family used to format NAS IDs for scraping (cambium, ruckus, ubiquiti, alta).';
 comment on column devices.device_name is 'Human-readable device name (optional).';
 comment on column devices.description is 'Device description or notes (optional).';
 comment on column devices.is_active is 'Whether the device is currently active and being monitored.';

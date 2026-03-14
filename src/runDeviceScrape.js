@@ -26,6 +26,7 @@ async function runDeviceScrape(nasId, options = {}) {
     // Step 1: Scrape the data
     console.log('\n📱 Step 1: Scraping device offload data...');
     const scrapeResult = await scrapeDeviceOffload(nasId, options);
+    const canonicalNasId = scrapeResult.nasId || nasId;
     console.log('✅ Scraping completed successfully');
 
     // Step 2: Parse the CSV
@@ -49,14 +50,14 @@ async function runDeviceScrape(nasId, options = {}) {
     console.log('\n💾 Step 3: Uploading to database...');
     const upsertResult = await upsertDeviceOffload(
       parseResult.data,
-      nasId,
+      canonicalNasId,
       scrapeResult.filename
     );
     console.log('✅ Database upload completed successfully');
 
     // Summary
     console.log('\n🎉 Device offload scrape completed successfully!');
-    console.log(`🎯 NAS ID: ${nasId}`);
+    console.log(`🎯 NAS ID: ${canonicalNasId}`);
     console.log(`📊 Records processed: ${upsertResult.totalProcessed}`);
     console.log(`✅ Records upserted: ${upsertResult.totalUpserted}`);
     console.log(`🔄 Records changed: ${upsertResult.totalChanged}`);
@@ -65,7 +66,7 @@ async function runDeviceScrape(nasId, options = {}) {
 
     return {
       success: true,
-      nasId,
+      nasId: canonicalNasId,
       scrapeResult,
       parseResult,
       upsertResult

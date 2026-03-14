@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
+const { resolveDeviceIdentity } = require('./deviceIdentity');
 
 const downloadDir = path.resolve(__dirname, '..', 'downloads');
 if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
@@ -18,10 +19,14 @@ const PRE_CLICK_DELAY_MS = 1000;       // give UI time to bind download
 const POST_CLICK_POLL_MS = 100;        // poll interval
 const POST_CLICK_MAX_MS = 20000;       // total wait after click (20s)
 
-async function scrapeDeviceOffload(nasId) {
+async function scrapeDeviceOffload(nasId, options = {}) {
   if (!nasId) {
     throw new Error('NAS ID is required');
   }
+
+  const deviceIdentity = await resolveDeviceIdentity(nasId, options.deviceType);
+  const normalizedNasId = deviceIdentity.nasId;
+  const scrapeNasId = deviceIdentity.scrapeNasId;
 
   const browser = await chromium.launch({
     headless: true,
@@ -32,7 +37,10 @@ async function scrapeDeviceOffload(nasId) {
 
   try {
     console.log('🚀 Starting device offload scraper...');
-    console.log(`🎯 Target NAS ID: ${nasId}`);
+    console.log(`🎯 Target NAS ID: ${normalizedNasId}`);
+    if (scrapeNasId !== normalizedNasId) {
+      console.log(`🧭 Formatted NAS ID for scrape: ${scrapeNasId} (${deviceIdentity.deviceType})`);
+    }
     
     // 🧑‍💻 Login sequence (same as original)
     console.log('📱 Navigating to OKTA start page...');
@@ -106,8 +114,8 @@ async function scrapeDeviceOffload(nasId) {
     console.log('✅ NASID text input appeared');
 
     // Fill in the NASID
-    console.log(`🔢 Filling in NAS ID: ${nasId}`);
-    await page1.locator('.hub-reporting-console-app-web-MuiInputBase-input.hub-reporting-console-app-web-MuiInput-input').fill(nasId);
+    console.log(`🔢 Filling in NAS ID: ${scrapeNasId}`);
+    await page1.locator('.hub-reporting-console-app-web-MuiInputBase-input.hub-reporting-console-app-web-MuiInput-input').fill(scrapeNasId);
     console.log('✅ NAS ID filled successfully');
 
     // Click Update button after filling NAS ID
@@ -162,7 +170,14 @@ async function scrapeDeviceOffload(nasId) {
     console.log('✅ File saved successfully:', fullPath);
     console.log('📊 Preview:\n', csvText.substring(0, 500));
 
-    return { csvText, filename, fullPath, nasId };
+    return {
+      csvText,
+      filename,
+      fullPath,
+      nasId: normalizedNasId,
+      scrapeNasId,
+      deviceType: deviceIdentity.deviceType,
+    };
   } finally {
     await context.close();
     await browser.close();

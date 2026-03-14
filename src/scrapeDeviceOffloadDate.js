@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
+const { resolveDeviceIdentity } = require('./deviceIdentity');
 
 const downloadDir = path.resolve(__dirname, '..', 'downloads');
 if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
@@ -214,13 +215,17 @@ async function setCustomDateRange(page, startDate, endDate) {
   }
 }
 
-async function scrapeDeviceOffloadDate(nasId, startDate, endDate) {
+async function scrapeDeviceOffloadDate(nasId, startDate, endDate, options = {}) {
   if (!nasId) {
     throw new Error('NAS ID is required');
   }
   if (!startDate || !endDate) {
     throw new Error('Both startDate and endDate are required');
   }
+
+  const deviceIdentity = await resolveDeviceIdentity(nasId, options.deviceType);
+  const normalizedNasId = deviceIdentity.nasId;
+  const scrapeNasId = deviceIdentity.scrapeNasId;
 
   const browser = await chromium.launch({
     headless: true,
@@ -235,7 +240,10 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate) {
 
   try {
     console.log('🚀 Starting device offload scraper with date range...');
-    console.log(`🎯 Target NAS ID: ${nasId}`);
+    console.log(`🎯 Target NAS ID: ${normalizedNasId}`);
+    if (scrapeNasId !== normalizedNasId) {
+      console.log(`🧭 Formatted NAS ID for scrape: ${scrapeNasId} (${deviceIdentity.deviceType})`);
+    }
     console.log(`📅 Date Range: ${startDate} to ${endDate}`);
     
     // 🧑‍💻 Login sequence (same as original)
@@ -326,8 +334,8 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate) {
     console.log('✅ NASID text input appeared');
 
     // Fill in the NASID
-    console.log(`🔢 Filling in NAS ID: ${nasId}`);
-    await page1.locator('.hub-reporting-console-app-web-MuiInputBase-input.hub-reporting-console-app-web-MuiInput-input').fill(nasId);
+    console.log(`🔢 Filling in NAS ID: ${scrapeNasId}`);
+    await page1.locator('.hub-reporting-console-app-web-MuiInputBase-input.hub-reporting-console-app-web-MuiInput-input').fill(scrapeNasId);
     console.log('✅ NAS ID filled successfully');
 
     // Click Update button after filling NAS ID
@@ -497,7 +505,16 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate) {
     console.log('✅ File saved successfully:', fullPath);
     console.log('📊 Preview:\n', csvText.substring(0, 500));
 
-    return { csvText, filename, fullPath, nasId, startDate, endDate };
+    return {
+      csvText,
+      filename,
+      fullPath,
+      nasId: normalizedNasId,
+      scrapeNasId,
+      deviceType: deviceIdentity.deviceType,
+      startDate,
+      endDate,
+    };
   } finally {
     await context.close();
     await browser.close();

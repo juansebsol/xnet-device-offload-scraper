@@ -22,6 +22,7 @@ async function runDeviceScrapDate(nasId, startDate, endDate) {
     // Step 1: Scrape the data with custom date range
     console.log('\n📱 Step 1: Scraping device offload data with date range...');
     const scrapeResult = await scrapeDeviceOffloadDate(nasId, startDate, endDate);
+    const canonicalNasId = scrapeResult.nasId || nasId;
     console.log('✅ Date range scraping completed successfully');
 
     // Step 2: Parse the CSV
@@ -45,14 +46,14 @@ async function runDeviceScrapDate(nasId, startDate, endDate) {
     console.log('\n💾 Step 3: Uploading to database...');
     const upsertResult = await upsertDeviceOffload(
       parseResult.data,
-      nasId,
+      canonicalNasId,
       scrapeResult.filename
     );
     console.log('✅ Database upload completed successfully');
 
     // Summary
     console.log('\n🎉 Device offload scrape with date range completed successfully!');
-    console.log(`🎯 NAS ID: ${nasId}`);
+    console.log(`🎯 NAS ID: ${canonicalNasId}`);
     console.log(`📅 Date Range: ${startDate} to ${endDate}`);
     console.log(`📊 Records processed: ${upsertResult.totalProcessed}`);
     console.log(`✅ Records upserted: ${upsertResult.totalUpserted}`);
@@ -62,7 +63,7 @@ async function runDeviceScrapDate(nasId, startDate, endDate) {
 
     return {
       success: true,
-      nasId,
+      nasId: canonicalNasId,
       startDate,
       endDate,
       scrapeResult,

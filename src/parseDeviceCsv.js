@@ -3,6 +3,8 @@
 // - Handles the format: Transaction Date, NAS-ID, Total Sessions, Count of Users, Rejects, Total GBs
 // - Returns structured data ready for database insertion
 
+const { normalizeNasId } = require('./nasIdUtils');
+
 function parseDeviceCsv(csvText) {
   if (!csvText || typeof csvText !== 'string') {
     throw new Error('CSV text is required and must be a string');
@@ -46,7 +48,7 @@ function parseDeviceCsv(csvText) {
         // Validate and transform the data
         const parsedRow = {
           transaction_date: parseDate(row['Transaction Date']),
-          nas_id: row['NAS-ID'].trim(),
+          nas_id: normalizeNasId(row['NAS-ID']),
           total_sessions: parseInt(row['Total Sessions'], 10),
           count_of_users: parseInt(row['Count of Users'], 10),
           rejects: parseInt(row['Rejects'], 10),

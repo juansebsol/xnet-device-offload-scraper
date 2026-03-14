@@ -81,7 +81,7 @@
       color: #dc2626;
     }
 
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--border);
@@ -89,7 +89,7 @@
       font-size: 14px;
       background: white;
     }
-    input:focus, textarea:focus {
+    input:focus, textarea:focus, select:focus {
       outline: none;
       border-color: rgba(37, 99, 235, 0.7);
       box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
@@ -304,15 +304,26 @@
           <div class="form-group">
             <label for="nas_id" class="required">NAS ID</label>
             <input type="text" id="nas_id" placeholder="bcb92300ae0c" autocomplete="off">
-            <p class="hint-text">Required. Primary identifier for the device.</p>
+            <p class="hint-text">Required. Store the normalized NAS ID or paste the formatted ID and it will be normalized.</p>
           </div>
           <div class="form-group">
-            <label for="device_name">Device Name (optional)</label>
-            <input type="text" id="device_name" placeholder="Office Device" autocomplete="off">
+            <label for="device_type" class="required">Device Type</label>
+            <select id="device_type">
+              <option value="">Select vendor / device type</option>
+              <option value="cambium">Cambium</option>
+              <option value="ruckus">Ruckus</option>
+              <option value="ubiquiti">Ubiquiti</option>
+              <option value="alta">Alta</option>
+            </select>
+            <p class="hint-text">Required. Used to reformat the normalized NAS ID before scraping in Single Digits.</p>
           </div>
         </div>
 
         <div class="form-row">
+          <div class="form-group">
+            <label for="device_name">Device Name (optional)</label>
+            <input type="text" id="device_name" placeholder="Office Device" autocomplete="off">
+          </div>
           <div class="form-group">
             <label for="description">Description (optional)</label>
             <input type="text" id="description" placeholder="Device description" autocomplete="off">
@@ -401,6 +412,7 @@
 
     async function addDevice() {
       const nasId = document.getElementById('nas_id').value.trim();
+      const deviceType = document.getElementById('device_type').value.trim();
       const deviceName = document.getElementById('device_name').value.trim();
       const description = document.getElementById('description').value.trim();
       const notes = document.getElementById('notes').value.trim();
@@ -410,12 +422,18 @@
         return;
       }
 
+      if (!deviceType) {
+        showResult('Device type is required.', 'error');
+        return;
+      }
+
       try {
         const res = await fetch(getApiUrl() + '/api/manage-devices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             nas_id: nasId,
+            device_type: deviceType,
             device_name: deviceName || undefined,
             description: description || undefined,
             notes: notes || undefined
@@ -430,6 +448,7 @@
 
         showResult(payload.message || 'Device added successfully.', 'success');
         document.getElementById('nas_id').value = '';
+        document.getElementById('device_type').value = '';
         document.getElementById('device_name').value = '';
         document.getElementById('description').value = '';
         document.getElementById('notes').value = '';
@@ -499,6 +518,7 @@
             <div class="device-cell col-device">
               <div class="device-name">${escapeHtml(device.device_name || 'Unnamed')}</div>
               <span class="key-pill truncate" title="${escapeHtml(device.nas_id || '')}">${escapeHtml(device.nas_id || '')}</span>
+              ${device.device_type ? `<div class="muted">Type: ${escapeHtml(device.device_type)}</div>` : ''}
               ${notes}
             </div>
             <div class="device-cell col-added">${escapeHtml(formatDate(device.added_to_tracked_at))}</div>
@@ -551,6 +571,7 @@
 
     function clearForm() {
       document.getElementById('nas_id').value = '';
+      document.getElementById('device_type').value = '';
       document.getElementById('device_name').value = '';
       document.getElementById('description').value = '';
       document.getElementById('notes').value = '';
