@@ -267,6 +267,20 @@
       border-radius: 8px;
     }
 
+    .import-box {
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: white;
+    }
+
+    .import-meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+
     @media (max-width: 980px) {
       .device-row {
         grid-template-columns: minmax(140px, 1fr) minmax(120px, 1fr);
@@ -341,6 +355,29 @@
       </div>
 
       <div class="section">
+        <h2>Bulk import tracked devices</h2>
+        <div class="import-box">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="csvFile">CSV file</label>
+              <input type="file" id="csvFile" accept=".csv,text/csv">
+              <p class="hint-text">Expected columns: <code>Device ID</code>, <code>Device Type</code>. Your sample file format is supported.</p>
+            </div>
+            <div class="form-group">
+              <label for="bulkNotes">Notes to apply to imported devices (optional)</label>
+              <input type="text" id="bulkNotes" placeholder="Imported from site list">
+            </div>
+          </div>
+
+          <button class="button success" id="importCsvBtn">Import CSV</button>
+          <button class="button info" id="previewCsvBtn">Preview CSV</button>
+
+          <div class="result" id="importResult"></div>
+          <div class="import-meta" id="importMeta">No CSV loaded yet.</div>
+        </div>
+      </div>
+
+      <div class="section">
         <div class="section-header-row">
           <div style="display:flex; gap:8px; align-items:baseline;">
             <div style="font-weight:700;">Tracked devices</div>
@@ -408,6 +445,195 @@
     function formatNum(value) {
       const n = Number(value || 0);
       return n.toLocaleString();
+    }
+
+    function normalizeNasId(value) {
+      return String(value || '').trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    }
+
+    function mapDeviceTypeLabel(value) {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (!normalized) return '';
+      if (normalized === 'ubiquiti' || normalized === 'ubnt') return 'ubiquiti';
+      if (normalized === 'ruckus') return 'ruckus';
+      if (normalized === 'cambium') return 'cambium';
+      if (normalized === 'alta') return 'alta';
+      return '';
+    }
+
+    function parseCsvLine(line) {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+
+      values.push(current.trim());
+      return values;
+    }
+
+    function parseImportCsv(csvText) {
+      const lines = String(csvText || '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (lines.length < 2) {
+        throw new Error('CSV must include a header row and at least one data row.');
+      }
+
+      const headers = parseCsvLine(lines[0]).map((value) => value.toLowerCase());
+      const deviceIdIndex = headers.indexOf('device id');
+      const deviceTypeIndex = headers.indexOf('device type');
+
+      if (deviceIdIndex === -1 || deviceTypeIndex === -1) {
+        throw new Error('CSV must contain "Device ID" and "Device Type" columns.');
+      }
+
+      const seen = new Set();
+      const rows = [];
+      const warnings = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCsvLine(lines[i]);
+        const rawNasId = values[deviceIdIndex] || '';
+        const rawDeviceType = values[deviceTypeIndex] || '';
+        const nasId = normalizeNasId(rawNasId);
+        const deviceType = mapDeviceTypeLabel(rawDeviceType);
+
+        if (!nasId) {
+          warnings.push(`Line ${i + 1}: missing device ID`);
+          continue;
+        }
+
+        if (!deviceType) {
+          warnings.push(`Line ${i + 1}: unsupported device type "${rawDeviceType}"`);
+          continue;
+        }
+
+        if (seen.has(nasId)) {
+          warnings.push(`Line ${i + 1}: duplicate device ${nasId} skipped`);
+          continue;
+        }
+
+        seen.add(nasId);
+        rows.push({
+          nas_id: nasId,
+          device_type: deviceType,
+        });
+      }
+
+      return { rows, warnings, totalRows: lines.length - 1 };
+    }
+
+    async function readSelectedCsv() {
+      const input = document.getElementById('csvFile');
+      const file = input.files && input.files[0];
+      if (!file) {
+        throw new Error('Choose a CSV file first.');
+      }
+      return file.text();
+    }
+
+    async function previewCsvImport() {
+      const importMeta = document.getElementById('importMeta');
+      const importResult = document.getElementById('importResult');
+      try {
+        const csvText = await readSelectedCsv();
+        const parsed = parseImportCsv(csvText);
+        showImportResult('', 'info');
+        importMeta.textContent =
+          `Detected ${parsed.rows.length} importable devices from ${parsed.totalRows} CSV rows.` +
+          (parsed.warnings.length ? `\nWarnings:\n- ${parsed.warnings.join('\n- ')}` : '\nNo warnings.');
+      } catch (error) {
+        importMeta.textContent = 'No CSV loaded yet.';
+        showImportResult(error.message, 'error');
+      }
+    }
+
+    function showImportResult(message, type = 'success') {
+      const result = document.getElementById('importResult');
+      result.className = 'result ' + type;
+      result.innerHTML = String(message || '');
+      result.style.display = message ? 'block' : 'none';
+    }
+
+    async function importCsvDevices() {
+      const importBtn = document.getElementById('importCsvBtn');
+      const importMeta = document.getElementById('importMeta');
+      const bulkNotes = document.getElementById('bulkNotes').value.trim();
+
+      try {
+        const csvText = await readSelectedCsv();
+        const parsed = parseImportCsv(csvText);
+
+        if (parsed.rows.length === 0) {
+          showImportResult('No valid devices found in the CSV.', 'error');
+          return;
+        }
+
+        importBtn.disabled = true;
+        importMeta.textContent = `Importing ${parsed.rows.length} devices...`;
+        showImportResult('', 'info');
+
+        let successCount = 0;
+        let failedCount = 0;
+        const failures = [];
+
+        for (const row of parsed.rows) {
+          try {
+            const res = await fetch(getApiUrl() + '/api/manage-devices', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                nas_id: row.nas_id,
+                device_type: row.device_type,
+                notes: bulkNotes || undefined,
+              }),
+            });
+
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              failedCount++;
+              failures.push(`${row.nas_id}: ${payload.error || 'HTTP ' + res.status}`);
+            } else {
+              successCount++;
+            }
+          } catch (error) {
+            failedCount++;
+            failures.push(`${row.nas_id}: ${error.message}`);
+          }
+        }
+
+        importMeta.textContent =
+          `Imported ${successCount} device(s). Failed: ${failedCount}.` +
+          (parsed.warnings.length ? `\nWarnings:\n- ${parsed.warnings.join('\n- ')}` : '');
+
+        if (failures.length) {
+          showImportResult(
+            `Imported ${successCount} device(s), ${failedCount} failed.<br><br>${escapeHtml(failures.join('\n'))}`.replace(/\n/g, '<br>'),
+            failedCount === parsed.rows.length ? 'error' : 'info'
+          );
+        } else {
+          showImportResult(`Imported ${successCount} device(s) successfully.`, 'success');
+        }
+
+        await loadDevices();
+      } catch (error) {
+        showImportResult(error.message, 'error');
+      } finally {
+        importBtn.disabled = false;
+      }
     }
 
     async function addDevice() {
@@ -581,6 +807,8 @@
     document.getElementById('addDeviceBtn').addEventListener('click', addDevice);
     document.getElementById('refreshBtn').addEventListener('click', loadDevices);
     document.getElementById('clearFormBtn').addEventListener('click', clearForm);
+    document.getElementById('importCsvBtn').addEventListener('click', importCsvDevices);
+    document.getElementById('previewCsvBtn').addEventListener('click', previewCsvImport);
 
     window.addEventListener('load', () => {
       document.getElementById('nas_id').focus();

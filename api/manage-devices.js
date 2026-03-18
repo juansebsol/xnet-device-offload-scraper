@@ -128,20 +128,29 @@ async function handleCreateDevice(req, res) {
 
     if (existingDevice) {
       deviceId = existingDevice.id;
+      const updates = {
+        updated_at: new Date().toISOString(),
+      };
+
       if (existingDevice.device_type !== normalizedDeviceType) {
+        updates.device_type = normalizedDeviceType;
+      }
+      if (device_name) {
+        updates.device_name = device_name;
+      }
+      if (description) {
+        updates.description = description;
+      }
+
+      if (Object.keys(updates).length > 1) {
         const { error: updateDeviceError } = await supabase
           .from('devices')
-          .update({
-            device_type: normalizedDeviceType,
-            device_name: device_name || undefined,
-            description: description || undefined,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updates)
           .eq('id', deviceId);
 
         if (updateDeviceError) {
           console.error('Device update error:', updateDeviceError);
-          return res.status(500).json({ error: 'Failed to update existing device type' });
+          return res.status(500).json({ error: 'Failed to update existing device' });
         }
       }
     } else {
@@ -168,9 +177,13 @@ async function handleCreateDevice(req, res) {
     // Add device to tracked list
     const { data: trackedDevice, error: trackError } = await supabase
       .from('tracked_devices')
-      .insert({
+      .upsert({
         nas_id: normalizedNasId,
-        notes: notes || null
+        notes: notes || null,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'nas_id',
       })
       .select()
       .single();
