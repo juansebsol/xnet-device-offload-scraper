@@ -1,0 +1,41 @@
+name: Normalization Status
+
+on:
+  workflow_dispatch:
+
+jobs:
+  show-normalization-status:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🚀 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: 🎯 Resolve normalization setting
+      run: |
+        if [ -n "${{ vars.NORMALIZATION }}" ]; then
+          echo "NORMALIZATION=${{ vars.NORMALIZATION }}" >> $GITHUB_ENV
+          echo "CONFIG_SOURCE=vars.NORMALIZATION" >> $GITHUB_ENV
+        elif [ -n "${{ secrets.NORMALIZATION }}" ]; then
+          echo "NORMALIZATION=${{ secrets.NORMALIZATION }}" >> $GITHUB_ENV
+          echo "CONFIG_SOURCE=secrets.NORMALIZATION" >> $GITHUB_ENV
+        else
+          echo "NORMALIZATION=off" >> $GITHUB_ENV
+          echo "CONFIG_SOURCE=default(off)" >> $GITHUB_ENV
+        fi
+
+    - name: 📊 Show effective lookup mode
+      run: |
+        NORMALIZATION_VALUE="$(printf '%s' "${NORMALIZATION:-off}" | tr '[:upper:]' '[:lower:]')"
+        echo "🔧 Config source: ${CONFIG_SOURCE}"
+        if [[ "$NORMALIZATION_VALUE" == "on" || "$NORMALIZATION_VALUE" == "true" || "$NORMALIZATION_VALUE" == "1" || "$NORMALIZATION_VALUE" == "yes" ]]; then
+          echo "🧭 Effective Single Digits lookup mode: normalized"
+        else
+          echo "🧭 Effective Single Digits lookup mode: legacy device-type formatting"
+        fi
+

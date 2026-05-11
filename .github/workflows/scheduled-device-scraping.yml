@@ -105,6 +105,11 @@ jobs:
         echo "OKTA_PASSWORD=${{ secrets.OKTA_PASSWORD }}" >> $GITHUB_ENV
         echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
         echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> $GITHUB_ENV
+        if [ -n "${{ vars.NORMALIZATION }}" ]; then
+          echo "NORMALIZATION=${{ vars.NORMALIZATION }}" >> $GITHUB_ENV
+        elif [ -n "${{ secrets.NORMALIZATION }}" ]; then
+          echo "NORMALIZATION=${{ secrets.NORMALIZATION }}" >> $GITHUB_ENV
+        fi
 
     - name: 🎭 Install Playwright browsers
       run: npx playwright install --with-deps chromium
@@ -115,6 +120,12 @@ jobs:
         echo "📦 Batch index: ${{ matrix.batch.batch_index }}"
         echo "📱 Batch devices: ${{ matrix.batch.devices_csv }}"
         echo "📊 Device count: ${{ matrix.batch.device_count }}"
+        NORMALIZATION_VALUE="$(printf '%s' "${NORMALIZATION:-off}" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$NORMALIZATION_VALUE" == "on" || "$NORMALIZATION_VALUE" == "true" || "$NORMALIZATION_VALUE" == "1" || "$NORMALIZATION_VALUE" == "yes" ]]; then
+          echo "🧭 Single Digits lookup mode: normalized"
+        else
+          echo "🧭 Single Digits lookup mode: legacy device-type formatting"
+        fi
 
         npm run --silent scrape:scheduled -- batch "${{ matrix.batch.devices_csv }}" 5000
 

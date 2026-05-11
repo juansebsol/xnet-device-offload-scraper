@@ -51,6 +51,11 @@ jobs:
         echo "OKTA_PASSWORD=${{ secrets.OKTA_PASSWORD }}" >> $GITHUB_ENV
         echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> $GITHUB_ENV
         echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> $GITHUB_ENV
+        if [ -n "${{ vars.NORMALIZATION }}" ]; then
+          echo "NORMALIZATION=${{ vars.NORMALIZATION }}" >> $GITHUB_ENV
+        elif [ -n "${{ secrets.NORMALIZATION }}" ]; then
+          echo "NORMALIZATION=${{ secrets.NORMALIZATION }}" >> $GITHUB_ENV
+        fi
         
     - name: 🎭 Install Playwright browsers
       run: npx playwright install --with-deps chromium
@@ -85,9 +90,15 @@ jobs:
         START_DATE="${{ steps.params.outputs.start_date }}"
         END_DATE="${{ steps.params.outputs.end_date }}"
         NAS_ID="${{ steps.params.outputs.nas_id }}"
+        NORMALIZATION_VALUE="$(printf '%s' "${NORMALIZATION:-off}" | tr '[:upper:]' '[:lower:]')"
         
         echo "DEBUG: START_DATE='$START_DATE'"
         echo "DEBUG: END_DATE='$END_DATE'"
+        if [[ "$NORMALIZATION_VALUE" == "on" || "$NORMALIZATION_VALUE" == "true" || "$NORMALIZATION_VALUE" == "1" || "$NORMALIZATION_VALUE" == "yes" ]]; then
+          echo "🧭 Single Digits lookup mode: normalized"
+        else
+          echo "🧭 Single Digits lookup mode: legacy device-type formatting"
+        fi
         
         if [ -n "$START_DATE" ] && [ -n "$END_DATE" ] && [ "$START_DATE" != "" ] && [ "$END_DATE" != "" ]; then
           echo "📅 Using custom date range: $START_DATE to $END_DATE"
