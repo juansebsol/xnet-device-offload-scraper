@@ -38,8 +38,10 @@ async function scrapeDeviceOffload(nasId, options = {}) {
   try {
     console.log('🚀 Starting device offload scraper...');
     console.log(`🎯 Target NAS ID: ${normalizedNasId}`);
-    if (scrapeNasId !== normalizedNasId) {
-      console.log(`🧭 Formatted NAS ID for scrape: ${scrapeNasId} (${deviceIdentity.deviceType})`);
+    console.log(`🧭 Single Digits lookup mode: ${deviceIdentity.lookupMode}`);
+    console.log(`🧭 NAS ID used for scrape lookup: ${scrapeNasId}`);
+    if (scrapeNasId !== normalizedNasId && deviceIdentity.deviceType) {
+      console.log(`🧭 Device type formatting applied: ${deviceIdentity.deviceType}`);
     }
     
     // 🧑‍💻 Login sequence (same as original)
@@ -177,6 +179,7 @@ async function scrapeDeviceOffload(nasId, options = {}) {
       nasId: normalizedNasId,
       scrapeNasId,
       deviceType: deviceIdentity.deviceType,
+      lookupMode: deviceIdentity.lookupMode,
     };
   } finally {
     await context.close();

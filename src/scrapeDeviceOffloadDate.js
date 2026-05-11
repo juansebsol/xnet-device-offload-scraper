@@ -241,8 +241,10 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate, options = {}) 
   try {
     console.log('🚀 Starting device offload scraper with date range...');
     console.log(`🎯 Target NAS ID: ${normalizedNasId}`);
-    if (scrapeNasId !== normalizedNasId) {
-      console.log(`🧭 Formatted NAS ID for scrape: ${scrapeNasId} (${deviceIdentity.deviceType})`);
+    console.log(`🧭 Single Digits lookup mode: ${deviceIdentity.lookupMode}`);
+    console.log(`🧭 NAS ID used for scrape lookup: ${scrapeNasId}`);
+    if (scrapeNasId !== normalizedNasId && deviceIdentity.deviceType) {
+      console.log(`🧭 Device type formatting applied: ${deviceIdentity.deviceType}`);
     }
     console.log(`📅 Date Range: ${startDate} to ${endDate}`);
     
@@ -512,6 +514,7 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate, options = {}) 
       nasId: normalizedNasId,
       scrapeNasId,
       deviceType: deviceIdentity.deviceType,
+      lookupMode: deviceIdentity.lookupMode,
       startDate,
       endDate,
     };

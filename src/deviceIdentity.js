@@ -5,6 +5,16 @@ const {
   formatNasIdForDeviceType,
 } = require('./nasIdUtils');
 
+function isLookupNormalizationEnabled() {
+  const configuredValue = String(
+    process.env.NORMALIZATION || process.env.SINGLE_DIGITS_LOOKUP_NORMALIZATION || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  return ['on', 'true', '1', 'yes'].includes(configuredValue);
+}
+
 async function resolveDeviceIdentity(nasId, explicitDeviceType = '') {
   const rawNasId = String(nasId || '').trim();
   const normalizedNasId = normalizeNasId(rawNasId);
@@ -26,9 +36,12 @@ async function resolveDeviceIdentity(nasId, explicitDeviceType = '') {
     deviceName = data?.device_name || '';
   }
 
-  const scrapeNasId = deviceType
-    ? formatNasIdForDeviceType(normalizedNasId, deviceType)
-    : rawNasId;
+  const lookupNormalizationEnabled = isLookupNormalizationEnabled();
+  const scrapeNasId = lookupNormalizationEnabled
+    ? (normalizedNasId || rawNasId)
+    : (deviceType
+      ? formatNasIdForDeviceType(normalizedNasId, deviceType)
+      : rawNasId);
 
   return {
     inputNasId: rawNasId,
@@ -36,6 +49,8 @@ async function resolveDeviceIdentity(nasId, explicitDeviceType = '') {
     scrapeNasId,
     deviceType,
     deviceName,
+    lookupMode: lookupNormalizationEnabled ? 'normalized' : 'legacy',
+    lookupNormalizationEnabled,
   };
 }
 
