@@ -122,7 +122,7 @@ async function addDeviceToScrapeList(nasId, config = {}) {
   }
 
   if (!normalizedDeviceType) {
-    throw new Error('deviceType is required and must be one of: cambium, ruckus, ubiquiti, alta');
+    throw new Error('deviceType is required and must be one of: cambium, ruckus, ubiquiti, alta, unknown');
   }
 
   await ensureDeviceExists(normalizedNasId, deviceName, normalizedDeviceType);

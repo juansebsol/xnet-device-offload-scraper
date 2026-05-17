@@ -328,8 +328,9 @@
               <option value="ruckus">Ruckus</option>
               <option value="ubiquiti">Ubiquiti</option>
               <option value="alta">Alta</option>
+              <option value="unknown">Unknown</option>
             </select>
-            <p class="hint-text">Required. Used to reformat the normalized NAS ID before scraping in Single Digits.</p>
+            <p class="hint-text">Required. Used to reformat the normalized NAS ID before scraping in Single Digits. `Unknown` always uses the normalized NAS ID.</p>
           </div>
         </div>
 
@@ -458,6 +459,7 @@
       if (normalized === 'ruckus') return 'ruckus';
       if (normalized === 'cambium') return 'cambium';
       if (normalized === 'alta') return 'alta';
+      if (normalized === 'unknown') return 'unknown';
       return '';
     }
 

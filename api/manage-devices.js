@@ -113,7 +113,7 @@ async function handleCreateDevice(req, res) {
 
   if (!normalizedDeviceType) {
     return res.status(400).json({
-      error: 'device_type is required and must be one of: cambium, ruckus, ubiquiti, alta',
+      error: 'device_type is required and must be one of: cambium, ruckus, ubiquiti, alta, unknown',
     });
   }
 

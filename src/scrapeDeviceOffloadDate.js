@@ -19,194 +19,29 @@ const PRE_CLICK_DELAY_MS = 1000;       // give UI time to bind download
 const POST_CLICK_POLL_MS = 100;        // poll interval
 const POST_CLICK_MAX_MS = 10000;       // total wait after click (10s)
 
-// Date format conversion function
-function convertToMMDDYYYY(dateStr) {
-  // Convert YYYY-MM-DD to MM/DD/YYYY (format expected by UI)
-  const [year, month, day] = dateStr.split('-');
-  return `${month}/${day}/${year}`;
-}
-
 /**
- * Sets custom date range in the NASID Daily interface using proven two-step approach
+ * Sets custom date range in the NASID Daily interface.
  * @param {Page} page - Playwright page object
  * @param {string} startDate - Start date in YYYY-MM-DD format
  * @param {string} endDate - End date in YYYY-MM-DD format
  */
 async function setCustomDateRange(page, startDate, endDate) {
   console.log('📅 Setting custom date range...');
-  console.log(`   📅 Start Date: ${startDate} (${convertToMMDDYYYY(startDate)})`);
-  console.log(`   📅 End Date: ${endDate} (${convertToMMDDYYYY(endDate)})`);
+  console.log(`   📅 Start Date: ${startDate}`);
+  console.log(`   📅 End Date: ${endDate}`);
 
   try {
-    // Step 1: JavaScript state forcing to partially activate the button
-    console.log('🔧 Step 1: JavaScript state forcing...');
-    const jsStateForced = await page.evaluate(() => {
-      // Find Custom Date Range elements
-      const elements = Array.from(document.querySelectorAll('*'));
-      const customDateElements = elements.filter(el => 
-        el.textContent && el.textContent.trim() === 'Custom Date Range'
-      );
-      
-      if (customDateElements.length > 0) {
-        const element = customDateElements[0];
-        
-        // Try multiple JavaScript click methods
-        const clickMethods = [
-          () => element.click(),
-          () => element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })),
-          () => element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })),
-          () => element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true })),
-          () => {
-            const button = element.closest('button') || element.closest('[role="button"]');
-            if (button) {
-              button.click();
-              return true;
-            }
-            return false;
-          }
-        ];
-        
-        for (let i = 0; i < clickMethods.length; i++) {
-          try {
-            const result = clickMethods[i]();
-            if (result !== false) {
-              // Immediate check for date inputs
-              const dateInputs = document.querySelectorAll('input[type="date"], input[placeholder*="date"], input[placeholder*="Date"]');
-              if (dateInputs.length > 0) {
-                return true; // Success
-              }
-            }
-          } catch (error) {
-            // Continue to next method
-          }
-        }
-      }
-      
-      return false; // Partial success or setup for next step
-    });
+    await page.locator('div').filter({ hasText: /^Custom Date Range$/ }).click();
+    console.log('✅ Custom Date Range clicked');
 
-    console.log(`🔧 JavaScript state forcing result: ${jsStateForced ? 'SUCCESS' : 'PARTIAL'}`);
+    console.log(`📅 Setting start date: ${startDate}`);
+    await page.getByRole('textbox', { name: 'Start time' }).fill(startDate);
+    console.log('✅ Start date filled successfully');
 
-    // Wait for potential UI changes after JavaScript forcing
-    await page.waitForTimeout(2000);
+    console.log(`📅 Setting end date: ${endDate}`);
+    await page.getByRole('textbox', { name: 'End Date' }).fill(endDate);
+    console.log('✅ End date filled successfully');
 
-    // Step 2: Follow up with Playwright clicks to complete activation
-    console.log('🔄 Step 2: Playwright follow-up clicks...');
-    let playwrightClickSuccess = false;
-    
-    // Method 1: Try getByText click
-    try {
-      console.log('🔘 Trying getByText click after JavaScript forcing...');
-      await page.getByText('Custom Date Range').click();
-      console.log('✅ getByText click successful');
-      playwrightClickSuccess = true;
-    } catch (error) {
-      console.log('⚠️ getByText click failed, trying filtered locator...');
-      
-      // Method 2: Try filtered locator click
-      try {
-        console.log('🔘 Trying filtered locator click after JavaScript forcing...');
-        await page.locator('div').filter({ hasText: /^Custom Date Range$/ }).click();
-        console.log('✅ Filtered locator click successful');
-        playwrightClickSuccess = true;
-      } catch (error2) {
-        console.log('⚠️ Both Playwright click methods failed after JavaScript forcing');
-      }
-    }
-    
-    console.log(`🔄 Playwright follow-up result: ${playwrightClickSuccess ? 'SUCCESS' : 'COMPLETED'}`);
-
-    // Wait for final UI changes after the combined approach
-    await page.waitForTimeout(3000);
-
-    // CRITICAL: Click the grid element to activate date picker (from working sequence)
-    console.log('📋 Activating date picker with grid click...');
-    await page.locator('.hub-reporting-console-app-web-MuiGrid-root.hub-reporting-console-app-web-MuiGrid-item.hub-reporting-console-app-web-MuiGrid-grid-xs-6').first().click();
-    console.log('✅ Date picker activated successfully');
-
-    // Wait for date inputs to appear
-    await page.waitForTimeout(2000);
-
-    // Fill Start Date using MM/DD/YYYY format
-    console.log(`📅 Setting start date: ${convertToMMDDYYYY(startDate)}`);
-    const startDateFormatted = convertToMMDDYYYY(startDate);
-    
-    // Try multiple selectors for start date
-    let startDateFilled = false;
-    const startDateSelectors = [
-      () => page.getByRole('textbox', { name: 'Start time' }),
-      () => page.locator('input[aria-label*="Start"]').first(),
-      () => page.locator('input[placeholder*="Start"]').first(),
-      () => page.locator('input[type="date"]').first(),
-      () => page.locator('input[type="text"]').first()
-    ];
-    
-    for (let i = 0; i < startDateSelectors.length && !startDateFilled; i++) {
-      try {
-        const selector = startDateSelectors[i]();
-        const exists = await selector.count() > 0;
-        if (exists) {
-          await selector.fill('');
-          await page.waitForTimeout(500);
-          await selector.fill(startDateFormatted);
-          await selector.press('Tab');
-          await selector.press('Tab');
-          
-          const actualValue = await selector.inputValue();
-          if (actualValue && actualValue !== '') {
-            console.log(`✅ Start date filled successfully: ${actualValue}`);
-            startDateFilled = true;
-          }
-        }
-      } catch (error) {
-        console.log(`⚠️ Start date selector ${i} failed: ${error.message}`);
-      }
-    }
-    
-    if (!startDateFilled) {
-      throw new Error('Failed to fill start date with any selector');
-    }
-
-    // Fill End Date using MM/DD/YYYY format
-    console.log(`📅 Setting end date: ${convertToMMDDYYYY(endDate)}`);
-    const endDateFormatted = convertToMMDDYYYY(endDate);
-    
-    let endDateFilled = false;
-    const endDateSelectors = [
-      () => page.getByRole('textbox', { name: 'End Date' }),
-      () => page.locator('input[aria-label*="End"]').first(),
-      () => page.locator('input[placeholder*="End"]').first(),
-      () => page.locator('input[type="date"]').nth(1),
-      () => page.locator('input[type="text"]').nth(1)
-    ];
-    
-    for (let i = 0; i < endDateSelectors.length && !endDateFilled; i++) {
-      try {
-        const selector = endDateSelectors[i]();
-        const exists = await selector.count() > 0;
-        if (exists) {
-          await selector.fill('');
-          await page.waitForTimeout(500);
-          await selector.fill(endDateFormatted);
-          await selector.press('Enter');
-          
-          const actualValue = await selector.inputValue();
-          if (actualValue && actualValue !== '') {
-            console.log(`✅ End date filled successfully: ${actualValue}`);
-            endDateFilled = true;
-          }
-        }
-      } catch (error) {
-        console.log(`⚠️ End date selector ${i} failed: ${error.message}`);
-      }
-    }
-    
-    if (!endDateFilled) {
-      throw new Error('Failed to fill end date with any selector');
-    }
-
-    // Wait for date selection to settle
-    await page.waitForTimeout(1000);
     console.log('✅ Custom date range configured successfully');
 
   } catch (error) {
@@ -223,26 +58,29 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate, options = {}) 
     throw new Error('Both startDate and endDate are required');
   }
 
+  const headless = options.headless !== undefined ? Boolean(options.headless) : true;
+  const slowMo = Number(options.slowMo) || 0;
+
   const deviceIdentity = await resolveDeviceIdentity(nasId, options.deviceType);
   const normalizedNasId = deviceIdentity.nasId;
   const scrapeNasId = deviceIdentity.scrapeNasId;
 
   const browser = await chromium.launch({
-    headless: true,
+    headless,
+    slowMo,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
-
-  let fileUrl = '';
-  let filename = '';
-  let capturedResponse = null;
 
   try {
     console.log('🚀 Starting device offload scraper with date range...');
     console.log(`🎯 Target NAS ID: ${normalizedNasId}`);
     console.log(`🧭 Single Digits lookup mode: ${deviceIdentity.lookupMode}`);
     console.log(`🧭 NAS ID used for scrape lookup: ${scrapeNasId}`);
+    if (!headless) {
+      console.log(`👁️ Running in headed UI mode${slowMo > 0 ? ` with slowMo=${slowMo}ms` : ''}`);
+    }
     if (scrapeNasId !== normalizedNasId && deviceIdentity.deviceType) {
       console.log(`🧭 Device type formatting applied: ${deviceIdentity.deviceType}`);
     }
@@ -310,25 +148,9 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate, options = {}) 
     await page1.waitForSelector('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1', { timeout: 10000 });
     console.log('✅ NASID dropdown appeared');
 
-    // Click on the dropdown option - use a more specific selector to avoid multiple matches
-    console.log('📋 Clicking NASID dropdown option...');
-    
-    // Wait for the NASID dropdown to be more specific
-    await page1.waitForTimeout(500);
-    
-    // Try to find the NASID dropdown specifically by looking for elements that contain NASID-related text
-    const nasidDropdownOption = await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1')
-      .filter({ hasText: /NASID|nasid/i })
-      .first();
-    
-    if (await nasidDropdownOption.count() > 0) {
-      await nasidDropdownOption.click();
-      console.log('✅ NASID dropdown option clicked (filtered)');
-    } else {
-      // Fallback: click the first dropdown option if no NASID-specific one found
-      await page1.locator('.hub-reporting-console-app-web-MuiTypography-root.hub-reporting-console-app-web-MuiTypography-body1').first().click();
-      console.log('✅ NASID dropdown option clicked (fallback to first)');
-    }
+    // Keep the same working dropdown selection as the normal scraper
+    await page1.locator('div.sd-multi-auto-complete-option[value="FLKW"]').click();
+    console.log('Drop Down Selection Completed');
 
     // Wait for the input field to appear and fill in the NASID
     console.log('✏️ Waiting for NASID text input...');
@@ -354,155 +176,37 @@ async function scrapeDeviceOffloadDate(nasId, startDate, endDate, options = {}) 
     if (!frame) throw new Error('❌ iframe not ready');
     console.log('✅ iframe ready');
 
-    // Open export menu - using correct button names from your working code
+    // Open export menu - using the same working flow as the normal scraper
     console.log('📤 Opening export menu...');
     await frame.getByRole('button', { name: 'Inbound Daily NASID Summary' }).click();
     console.log('✅ Export button clicked successfully');
-    
+
     console.log('⬇️ Clicking Download data...');
     await frame.getByRole('menuitem', { name: 'Download data' }).click();
     console.log('✅ Download data clicked successfully');
-    
-    // Select CSV format
-    console.log('📊 Selecting CSV format...');
-    await frame.getByRole('combobox', { name: 'Format combobox' }).locator('div').nth(1).click();
-    console.log('✅ Format combobox clicked');
-    
+
+    // Open format dropdown and select CSV
+    await frame.locator('#listbox-input-qr-export-modal-format').click();
     await frame.getByRole('option', { name: 'CSV' }).click();
     console.log('✅ CSV format selected');
 
-    // Capture attachment response
-    page1.on('response', async (response) => {
-      try {
-        const headers = response.headers();
-        const disposition = headers['content-disposition'] || '';
-        const contentType = headers['content-type'] || '';
-        if (
-          response.status() === 200 &&
-          disposition.includes('attachment') &&
-          (contentType.includes('csv') || contentType.includes('text'))
-        ) {
-          fileUrl = response.url();
-          const match = disposition.match(/filename="(.+?)"/);
-          filename = match?.[1] || 'device_offload_date.csv';
-          capturedResponse = response;
-          console.log('✅ Correct file detected:', filename);
-        }
-      } catch (e) {
-        console.error('⚠️ Error parsing response:', e);
-      }
-    });
+    // Download the exported CSV using Playwright's download API
+    const downloadPromise = page1.waitForEvent('download', { timeout: POST_CLICK_MAX_MS });
 
-    // extra pre-click pause (your working script)
-    console.log(`⏳ Waiting ${PRE_CLICK_DELAY_MS}ms before download click...`);
-    await page1.waitForTimeout(PRE_CLICK_DELAY_MS);
+    // Download button click sequence
+    await frame.locator('text=Format').click();
+    await frame.locator('#qr-export-modal-download').click();
 
-    // FIXED: Handle viewport issue with download button
-    console.log('🔧 Fixing viewport issue with download button...');
-    
-    // Since we know Method 2 (JavaScript) worked, let's try it first
-    let downloadClicked = false;
-    
-    // Method 1: Try JavaScript click first (this was the working method)
-    try {
-      console.log('🔄 Method 1: Attempting JavaScript click (this method succeeded before)...');
-      await frame.evaluate(() => {
-        const downloadBtn = document.querySelector('#qr-export-modal-download');
-        if (downloadBtn) {
-          downloadBtn.click();
-          return true;
-        }
-        return false;
-      });
-      console.log('✅ Download button clicked successfully via JavaScript method (this was the working method)');
-      downloadClicked = true;
-    } catch (jsError) {
-      console.log('⚠️ JavaScript method failed, trying scroll method...');
-      console.log('📝 JavaScript error details:', jsError.message);
-      
-      // Method 2: Try to scroll the button into view as fallback
-      try {
-        console.log('🔄 Method 2: Attempting to scroll button into view...');
-        const btn = await frame.locator('#qr-export-modal-download');
-        
-        // Scroll the button into view
-        await btn.scrollIntoViewIfNeeded();
-        console.log('✅ Button scrolled into view successfully');
-        
-        // Wait a moment for the scroll to complete
-        await frame.waitForTimeout(500);
-        
-        // Try clicking
-        await btn.click();
-        console.log('✅ Download button clicked successfully via scroll method');
-        downloadClicked = true;
-      } catch (scrollError) {
-        console.log('⚠️ Scroll method failed, trying keyboard navigation...');
-        console.log('📝 Scroll error details:', scrollError.message);
-        
-        // Method 3: Use keyboard navigation as last resort
-        try {
-          console.log('🔄 Method 3: Attempting keyboard navigation...');
-          // Press Tab to focus the button, then Enter to click
-          await frame.keyboard.press('Tab');
-          await frame.waitForTimeout(200);
-          await frame.keyboard.press('Enter');
-          console.log('✅ Download button activated successfully via keyboard method');
-          downloadClicked = true;
-        } catch (keyboardError) {
-          console.log('❌ All click methods failed');
-          console.log('📝 Keyboard error details:', keyboardError.message);
-          throw new Error(`All click methods failed: ${keyboardError.message}`);
-        }
-      }
-    }
-    
-    if (!downloadClicked) {
-      throw new Error('Failed to click download button with any method');
-    }
-
-    // Poll for fileUrl (instead of fixed 3s)
-    console.log('⏳ Polling for file URL...');
-    const start = Date.now();
-    while (!fileUrl && Date.now() - start < POST_CLICK_MAX_MS) {
-      await page1.waitForTimeout(POST_CLICK_POLL_MS);
-      console.log(`⏳ Still waiting... (${Date.now() - start}ms elapsed)`);
-    }
-
-    if (!fileUrl) {
-      throw new Error('❌ No valid file detected (timeout waiting for download response).');
-    }
-    console.log('✅ File URL detected successfully');
-
-    // Use capturedResponse if we have it; else fetch fileUrl
-    console.log('📥 Reading file content...');
-    let csvText;
-    try {
-      if (capturedResponse) {
-        // Use Playwright's response body (safer; avoids re-fetch auth issues)
-        console.log('📥 Reading from captured response...');
-        const bodyBuffer = await capturedResponse.body();
-        csvText = bodyBuffer.toString('utf8');
-        console.log('✅ File content read from captured response');
-      } else {
-        // fallback GET via context request
-        console.log('📥 Fetching file via network request...');
-        const resp = await page1.request.get(fileUrl);
-        csvText = await resp.text();
-        console.log('✅ File content fetched via network request');
-      }
-    } catch (err) {
-      console.warn('⚠️ Could not read captured response body; fallback network GET', err);
-      console.log('📥 Using fallback network request...');
-      const resp = await page1.request.get(fileUrl);
-      csvText = await resp.text();
-      console.log('✅ File content read via fallback method');
-    }
-
-    // Save to disk
-    console.log('💾 Saving file to disk...');
+    const download = await downloadPromise;
+    const filename = download.suggestedFilename() || `device-offload-date-${Date.now()}.csv`;
     const fullPath = path.join(downloadDir, filename);
-    fs.writeFileSync(fullPath, csvText, 'utf-8');
+
+    console.log('💾 Saving file to disk...');
+    await download.saveAs(fullPath);
+    console.log('✅ File downloaded successfully:', fullPath);
+
+    console.log('📥 Reading file content...');
+    const csvText = fs.readFileSync(fullPath, 'utf-8');
 
     console.log('✅ File saved successfully:', fullPath);
     console.log('📊 Preview:\n', csvText.substring(0, 500));

@@ -5,6 +5,7 @@
 // Delete this file when you're done testing
 
 const { runDeviceScrape } = require('./src/runDeviceScrape');
+const { runDeviceScrapDate } = require('./src/runDeviceScrapDate');
 const { scrapeAllDevices } = require('./src/scheduledDeviceScrape');
 const { getDeviceOffloadData, getDeviceOffloadSummary } = require('./src/upsertDeviceOffload');
 
@@ -127,13 +128,13 @@ async function testSingleFunction(functionName, ...args) {
         const deviceId = args[0] || TEST_DEVICES[0];
         const startDate = args[1];
         const endDate = args[2];
-        const options = {};
         if (startDate && endDate) {
-          options.startDate = startDate;
-          options.endDate = endDate;
           console.log(`📅 Using custom date range: ${startDate} to ${endDate}`);
+          const dateResult = await runDeviceScrapDate(deviceId, startDate, endDate);
+          console.log(`✅ Date-range scraping successful: ${dateResult.upsertResult.totalUpserted} records`);
+          break;
         }
-        const result = await runDeviceScrape(deviceId, options);
+        const result = await runDeviceScrape(deviceId);
         console.log(`✅ Scraping successful: ${result.upsertResult.totalUpserted} records`);
         break;
         

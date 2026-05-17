@@ -7,6 +7,7 @@
   "scripts": {
     "scrape:device": "node -r dotenv/config src/runDeviceScrape.js",
     "scrape:device:date": "node -r dotenv/config src/runDeviceScrapDate.js",
+    "scrape:device:custom-time": "node -r dotenv/config src/runDeviceScrapDate.js",
     "scrape:scheduled": "node -r dotenv/config src/scheduledDeviceScrape.js",
     "parse:device": "node src/parseDeviceCsv.js",
     "upsert:device": "node -r dotenv/config src/upsertDeviceOffload.js",
@@ -17,6 +18,7 @@
     "test:local": "node -r dotenv/config test-local-scraping.js",
     "test:scrape": "node -r dotenv/config test-local-scraping.js scrape",
     "test:scrape:date": "node -r dotenv/config test-local-scraping.js scrape",
+    "test:scrape:custom-time:ui": "node -r dotenv/config scripts/test-custom-time-scrape-ui.js",
     "test:query": "node -r dotenv/config test-local-scraping.js query",
     "test:scheduled": "node -r dotenv/config test-local-scraping.js scheduled"
   },

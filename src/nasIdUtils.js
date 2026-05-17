@@ -3,6 +3,7 @@ const DEVICE_TYPES = {
   RUCKUS: 'ruckus',
   UBIQUITI: 'ubiquiti',
   ALTA: 'alta',
+  UNKNOWN: 'unknown',
 };
 
 function normalizeNasId(nasId) {
