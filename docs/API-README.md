@@ -18,7 +18,24 @@
 
 ## 🔐 **Authentication**
 
-Currently, no authentication is required. All endpoints are publicly accessible.
+All endpoints require an API key.
+
+```http
+Authorization: Bearer xnet_live_...
+```
+
+### Scopes
+
+| Scope | Access |
+|---|---|
+| `read` | `GET /api/device-offload` |
+| `write` | `GET/POST/DELETE /api/manage-devices` |
+| `trigger` | `POST /api/trigger-scrape`, `POST /api/trigger-scrape-date` |
+
+Create, list, and revoke keys in Supabase using [`docs/API-KEYS.md`](./API-KEYS.md) / [`sql/api_keys.sql`](../sql/api_keys.sql).
+
+Missing/invalid key → `401`  
+Valid key without required scope → `403`
 
 ---
 
@@ -180,6 +197,7 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices', {
 #### **cURL (Terminal)**
 ```bash
 curl -X POST "https://xnet-device-offload-scraper.vercel.app/api/manage-devices" \
+  -H "Authorization: Bearer xnet_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "nas_id": "newdevice123",
@@ -236,7 +254,8 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices?nas_id=
 
 #### **cURL (Terminal)**
 ```bash
-curl -X DELETE "https://xnet-device-offload-scraper.vercel.app/api/manage-devices?nas_id=bcb92300ae0c"
+curl -X DELETE "https://xnet-device-offload-scraper.vercel.app/api/manage-devices?nas_id=bcb92300ae0c" \
+  -H "Authorization: Bearer xnet_live_YOUR_KEY_HERE"
 ```
 
 ### **Response Format**
@@ -286,6 +305,7 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape', {
 #### **cURL (Terminal)**
 ```bash
 curl -X POST "https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape" \
+  -H "Authorization: Bearer xnet_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{"nas_id": "bcb92300ae0c"}'
 ```

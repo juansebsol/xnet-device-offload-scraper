@@ -6,18 +6,18 @@
 // DELETE /api/manage-devices/:id - Delete device
 
 const { supabase } = require('./_supabase');
+const { applyCors, requireApiKey } = require('./_auth');
 const {
   normalizeNasId,
   normalizeDeviceType,
 } = require('../src/nasIdUtils');
 
 module.exports = async (req, res) => {
-  // Basic CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
+  applyCors(res, 'GET, POST, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const auth = await requireApiKey(req, res, ['write']);
+  if (!auth.ok) return;
 
   try {
     switch (req.method) {

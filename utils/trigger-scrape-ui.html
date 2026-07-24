@@ -7,6 +7,7 @@
     <h2>Manual Device Scraping</h2>
     <p><em>This will trigger a GitHub Action to scrape the device data</em></p>
     <form id="scrapeForm">
+        <p>API Key: <input type="password" id="api_key" placeholder="xnet_live_..." required autocomplete="off"></p>
         <p>NAS ID: <input type="text" id="nas_id" placeholder="bcb92300ae0c" required></p>
         <button type="submit">Trigger GitHub Action Scrape</button>
     </form>
@@ -17,14 +18,23 @@
         document.getElementById('scrapeForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            const apiKey = document.getElementById('api_key').value.trim();
             const data = {
                 nas_id: document.getElementById('nas_id').value
             };
+
+            if (!apiKey) {
+                document.getElementById('result').innerHTML = 'Error: API key is required';
+                return;
+            }
             
             try {
                 const response = await fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: 'Bearer ' + apiKey,
+                    },
                     body: JSON.stringify(data)
                 });
                 

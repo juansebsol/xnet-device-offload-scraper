@@ -3,15 +3,16 @@
 // Triggers the device offload scraper for a specific NAS ID with custom date range
 // This endpoint is designed to be called by GitHub Actions or external systems
 
+const { applyCors, requireApiKey } = require('./_auth');
 const { normalizeNasId } = require('../src/nasIdUtils');
 
 module.exports = async (req, res) => {
-  // Basic CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applyCors(res, 'POST, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const auth = await requireApiKey(req, res, ['trigger']);
+  if (!auth.ok) return;
 
   try {
     const nas_id = normalizeNasId(req.body?.nas_id);

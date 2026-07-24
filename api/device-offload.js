@@ -4,16 +4,17 @@
 // GET /api/device-offload?nas_id=<nas_id> -> all data for that device
 
 const { supabase } = require('./_supabase');
+const { applyCors, requireApiKey } = require('./_auth');
 const { isoDate, startDateFromDays } = require('./_util');
 const { normalizeNasId } = require('../src/nasIdUtils');
 
 module.exports = async (req, res) => {
-  // Basic CORS (public read); tighten if needed
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applyCors(res, 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  const auth = await requireApiKey(req, res, ['read']);
+  if (!auth.ok) return;
 
   const { days, start, end } = req.query;
   const nas_id = normalizeNasId(req.query.nas_id);

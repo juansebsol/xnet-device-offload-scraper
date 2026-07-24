@@ -306,9 +306,16 @@
     <div class="content">
       <div class="section">
         <h2>API Configuration</h2>
-        <div class="form-group">
-          <label for="apiUrl">API Base URL</label>
-          <input type="url" id="apiUrl" value="https://xnet-device-offload-scraper.vercel.app" placeholder="https://your-api-domain.vercel.app">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="apiUrl">API Base URL</label>
+            <input type="url" id="apiUrl" value="https://xnet-device-offload-scraper.vercel.app" placeholder="https://your-api-domain.vercel.app">
+          </div>
+          <div class="form-group">
+            <label for="apiKey" class="required">API Key</label>
+            <input type="password" id="apiKey" placeholder="xnet_live_..." autocomplete="off">
+            <p class="hint-text">Required. Create/fetch keys in Supabase with <code>sql/api_keys.sql</code>. Needs <code>write</code> scope.</p>
+          </div>
         </div>
       </div>
 
@@ -400,9 +407,10 @@
 
       <div class="api-info">
         <h3>API usage</h3>
-        <p><strong>List tracked devices:</strong> <code>GET /api/manage-devices</code></p>
-        <p><strong>Add tracked device:</strong> <code>POST /api/manage-devices</code></p>
-        <p><strong>Remove tracked device:</strong> <code>DELETE /api/manage-devices?nas_id=&lt;id&gt;</code></p>
+        <p>All endpoints require <code>Authorization: Bearer &lt;api_key&gt;</code>.</p>
+        <p><strong>List tracked devices:</strong> <code>GET /api/manage-devices</code> (<code>write</code>)</p>
+        <p><strong>Add tracked device:</strong> <code>POST /api/manage-devices</code> (<code>write</code>)</p>
+        <p><strong>Remove tracked device:</strong> <code>DELETE /api/manage-devices?nas_id=&lt;id&gt;</code> (<code>write</code>)</p>
       </div>
     </div>
   </div>
@@ -410,6 +418,22 @@
   <script>
     function getApiUrl() {
       return document.getElementById('apiUrl').value.replace(/\/$/, '');
+    }
+
+    function getApiKey() {
+      return document.getElementById('apiKey').value.trim();
+    }
+
+    function getAuthHeaders(extra = {}) {
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        throw new Error('API key is required.');
+      }
+      return {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + apiKey,
+        ...extra,
+      };
     }
 
     function escapeHtml(s) {
@@ -596,7 +620,7 @@
           try {
             const res = await fetch(getApiUrl() + '/api/manage-devices', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getAuthHeaders(),
               body: JSON.stringify({
                 nas_id: row.nas_id,
                 device_type: row.device_type,
@@ -658,7 +682,7 @@
       try {
         const res = await fetch(getApiUrl() + '/api/manage-devices', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             nas_id: nasId,
             device_type: deviceType,
@@ -694,7 +718,7 @@
       try {
         const res = await fetch(getApiUrl() + '/api/manage-devices?nas_id=' + encodeURIComponent(nasId), {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' }
+          headers: getAuthHeaders()
         });
         const payload = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -775,10 +799,13 @@
       loading.style.display = 'block';
       setDevicesStatus('', '');
       try {
-        const res = await fetch(getApiUrl() + '/api/manage-devices');
+        const res = await fetch(getApiUrl() + '/api/manage-devices', {
+          method: 'GET',
+          headers: getAuthHeaders(),
+        });
         const payload = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setDevicesStatus('Failed to load devices: ' + (payload.error || ('HTTP ' + res.status)), 'error');
+          setDevicesStatus('Failed to load devices: ' + (payload.error || payload.details || ('HTTP ' + res.status)), 'error');
           document.getElementById('deviceList').className = 'device-list empty-state';
           document.getElementById('deviceList').textContent = 'Could not load devices.';
           return;
