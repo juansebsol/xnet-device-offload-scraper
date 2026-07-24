@@ -10,13 +10,22 @@ Authorization: Bearer xnet_live_...
 
 ## Setup
 
-1. Run `sql/api_keys.sql` in the Supabase SQL editor.
-2. Create at least one key (SQL below).
+1. Run `sql/api_keys.sql` once (creates table + RLS).
+2. Create a key with `sql/create-api-key.sql`.
 3. Deploy the API code that uses `api/_auth.js`.
 4. Share the key securely with the API user.
 
 Keys are stored in plaintext in `api_keys` so you can fetch them later.
 Access is locked down with RLS: only the service role used by Vercel can read the table.
+
+## SQL scripts
+
+| Script | Purpose |
+|---|---|
+| `sql/api_keys.sql` | Create table, indexes, RLS |
+| `sql/create-api-key.sql` | Create a new key |
+| `sql/list-api-keys.sql` | List/fetch keys |
+| `sql/revoke-api-key.sql` | Revoke a key |
 
 ## Scopes
 
@@ -26,77 +35,7 @@ Access is locked down with RLS: only the service role used by Vercel can read th
 | `write` | `GET/POST/DELETE /api/manage-devices` |
 | `trigger` | `POST /api/trigger-scrape`, `POST /api/trigger-scrape-date` |
 
-Give partners only the scopes they need.
-
-## Create a key
-
-```sql
-insert into public.api_keys (name, api_key, key_prefix, scopes)
-values (
-  'Partner Acme',
-  'xnet_live_' || encode(gen_random_bytes(24), 'hex'),
-  'xnet_live',
-  array['read', 'write', 'trigger']::text[]
-)
-returning id, name, api_key, key_prefix, scopes, is_active, created_at;
-```
-
-Read-only example:
-
-```sql
-insert into public.api_keys (name, api_key, key_prefix, scopes)
-values (
-  'Analytics Read Only',
-  'xnet_live_' || encode(gen_random_bytes(24), 'hex'),
-  'xnet_live',
-  array['read']::text[]
-)
-returning id, name, api_key, scopes;
-```
-
-## List keys
-
-```sql
-select
-  id,
-  name,
-  api_key,
-  key_prefix,
-  scopes,
-  is_active,
-  expires_at,
-  last_used_at,
-  created_at,
-  revoked_at
-from public.api_keys
-order by created_at desc;
-```
-
-## Fetch one key
-
-```sql
-select id, name, api_key, scopes, is_active, last_used_at
-from public.api_keys
-where name = 'Partner Acme';
-```
-
-## Revoke a key
-
-```sql
-update public.api_keys
-set is_active = false,
-    revoked_at = now()
-where name = 'Partner Acme'
-returning id, name, is_active, revoked_at;
-```
-
-## Optional expiry
-
-```sql
-update public.api_keys
-set expires_at = now() + interval '90 days'
-where name = 'Partner Acme';
-```
+Scopes are stored on the key. Callers only send the Bearer token.
 
 ## Example API call
 

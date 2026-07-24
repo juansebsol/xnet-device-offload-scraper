@@ -32,7 +32,7 @@ Authorization: Bearer xnet_live_...
 | `write` | `GET/POST/DELETE /api/manage-devices` |
 | `trigger` | `POST /api/trigger-scrape`, `POST /api/trigger-scrape-date` |
 
-Create, list, and revoke keys in Supabase using [`docs/API-KEYS.md`](./API-KEYS.md) / [`sql/api_keys.sql`](../sql/api_keys.sql).
+Create, list, and revoke keys in Supabase using [`docs/API-KEYS.md`](./API-KEYS.md) and the scripts in `sql/`.
 
 Missing/invalid key → `401`  
 Valid key without required scope → `403`
