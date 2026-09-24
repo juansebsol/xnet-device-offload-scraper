@@ -2,7 +2,7 @@
 
 Internal doc for XNET operators who manage API keys and grant access.
 
-**Base URL:** `https://rewards.xnetfoundation.org`
+**Base URL:** `https://xnet-device-offload-scraper.vercel.app`
 
 For partner-facing docs, share [`API-USER-GUIDE.md`](./API-USER-GUIDE.md) instead.
 
@@ -235,7 +235,7 @@ Example message:
 ```text
 API access for XNET Device Offload
 
-Base URL: https://rewards.xnetfoundation.org
+Base URL: https://xnet-device-offload-scraper.vercel.app
 API Key: xnet_live_...
 Scopes: read, write, trigger
 

@@ -185,7 +185,7 @@
             resultDiv.style.display = 'none';
             
             try {
-                const response = await fetch('https://rewards.xnetfoundation.org/api/trigger-scrape-date', {
+                const response = await fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape-date', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

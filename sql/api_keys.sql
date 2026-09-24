@@ -27,7 +27,9 @@ create index if not exists api_keys_name_idx on public.api_keys (name);
 alter table public.api_keys enable row level security;
 
 -- No policies for anon/authenticated roles.
--- Only the service role (used by the Vercel API) can read/write this table.
+-- Service role bypasses RLS, but still needs explicit GRANTs.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on table public.api_keys to service_role;
 
 comment on table public.api_keys is
   'Retrievable API keys for external access. Keep service-role only.';

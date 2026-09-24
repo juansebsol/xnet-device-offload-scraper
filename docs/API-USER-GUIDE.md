@@ -1,8 +1,6 @@
 # XNET Device Offload API — User Guide
 
-**Base URL:** `https://rewards.xnetfoundation.org`
-
-Share this doc with API consumers (partners, dashboards, integrations).
+**Base URL:** `https://xnet-device-offload-scraper.vercel.app`
 
 ---
 
@@ -14,7 +12,6 @@ Every request requires a Bearer API key:
 Authorization: Bearer xnet_live_...
 ```
 
-- You do **not** send scopes in the request.
 - Scopes are configured on your key by XNET.
 - Missing/invalid key → `401`
 - Valid key without required scope → `403`
@@ -35,7 +32,7 @@ Ask XNET for only the scopes you need.
 
 ```bash
 export API_KEY="xnet_live_YOUR_KEY_HERE"
-export BASE="https://rewards.xnetfoundation.org"
+export BASE="https://xnet-device-offload-scraper.vercel.app"
 
 # Fetch last 7 days of offload data
 curl -H "Authorization: Bearer $API_KEY" \
