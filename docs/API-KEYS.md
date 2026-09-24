@@ -23,9 +23,26 @@ Access is locked down with RLS: only the service role used by Vercel can read th
 | Script | Purpose |
 |---|---|
 | `sql/api_keys.sql` | Create table, indexes, RLS |
-| `sql/create-api-key.sql` | Create a new key |
+| `sql/allow-admin-scope.sql` | Add `admin` scope if table already exists |
+| `sql/create-api-key.sql` | Create a partner key via SQL |
+| `sql/create-admin-api-key.sql` | Create an admin key for the management UI |
 | `sql/list-api-keys.sql` | List/fetch keys |
 | `sql/revoke-api-key.sql` | Revoke a key |
+
+## Admin UI
+
+Open `utils/manage-api-keys-ui.html`.
+
+- Uses your existing Vercel env (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`) on the server
+- You only paste an **admin** Bearer API key in the UI (not the service role key)
+- Endpoint: `/api/manage-api-keys` (requires `admin` scope)
+
+First-time setup if the table already exists:
+
+1. Run `sql/allow-admin-scope.sql`
+2. Run `sql/create-admin-api-key.sql`
+3. Paste that admin key into the UI
+4. Create/list/revoke keys from there
 
 ## Scopes
 
@@ -34,13 +51,12 @@ Access is locked down with RLS: only the service role used by Vercel can read th
 | `read` | `GET /api/device-offload` |
 | `write` | `GET/POST/DELETE /api/manage-devices` |
 | `trigger` | `POST /api/trigger-scrape`, `POST /api/trigger-scrape-date` |
-
-Scopes are stored on the key. Callers only send the Bearer token.
+| `admin` | `GET/POST/DELETE /api/manage-api-keys` |
 
 ## Example API call
 
 ```bash
 curl -X GET \
-  "https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=942a6f5ae894&days=7" \
+  "https://rewards.xnetfoundation.org/api/device-offload?nas_id=942a6f5ae894&days=7" \
   -H "Authorization: Bearer xnet_live_YOUR_KEY_HERE"
 ```

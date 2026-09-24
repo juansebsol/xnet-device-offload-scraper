@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XNET Device Offload - Manage API Keys</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --soft: #f3f4f6;
+      --primary: #16a34a;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .content { padding: 18px; }
+    .section { margin-bottom: 18px; }
+    .section h2 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .form-group { margin-bottom: 12px; }
+    .form-row .form-group { flex: 1; min-width: 220px; }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .required::after {
+      content: " *";
+      color: #dc2626;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      background: white;
+    }
+
+    .hint-text {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .label-row label {
+      margin-bottom: 0;
+    }
+    .toggle-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--soft);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .toggle-chip input {
+      width: auto;
+      margin: 0;
+    }
+    .expiry-field.is-disabled {
+      opacity: 0.55;
+    }
+
+    .scopes {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 10px 0 2px;
+    }
+    .scopes label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      margin: 0;
+    }
+    .scopes input {
+      width: auto;
+      margin: 0;
+    }
+
+    .button {
+      appearance: none;
+      border: 1px solid transparent;
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .button.info {
+      background: var(--soft);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .button.danger { background: var(--danger); }
+    .button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .result {
+      display: none;
+      margin-top: 12px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .result.success { border-color: rgba(22,163,74,0.35); background: rgba(22,163,74,0.08); }
+    .result.error { border-color: rgba(220,38,38,0.35); background: rgba(220,38,38,0.08); }
+    .result.info { border-color: rgba(37,99,235,0.35); background: rgba(37,99,235,0.08); }
+
+    .loading {
+      display: none;
+      margin: 10px 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .section-header-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .key-list {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: white;
+    }
+    .key-list.empty-state {
+      padding: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .key-row {
+      display: grid;
+      grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.4fr) minmax(160px, 1.2fr) minmax(120px, 0.8fr) auto;
+      gap: 8px;
+      align-items: start;
+      padding: 10px 12px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .key-row.header {
+      background: var(--soft);
+      border-top: none;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .muted { color: var(--muted); font-size: 12px; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--soft);
+      border: 1px solid var(--border);
+    }
+    .badge.active {
+      background: rgba(22,163,74,0.1);
+      border-color: rgba(22,163,74,0.3);
+      color: #166534;
+    }
+    .badge.revoked {
+      background: rgba(220,38,38,0.08);
+      border-color: rgba(220,38,38,0.25);
+      color: #991b1b;
+    }
+
+    @media (max-width: 900px) {
+      .key-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>XNET Device Offload</h1>
+      <p>API key management (admin)</p>
+    </div>
+
+    <div class="content">
+      <div class="section">
+        <h2>API Configuration</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="apiUrl">API Base URL</label>
+            <input type="url" id="apiUrl" value="https://rewards.xnetfoundation.org">
+          </div>
+          <div class="form-group">
+            <label for="adminApiKey" class="required">Admin API Key</label>
+            <input type="password" id="adminApiKey" placeholder="xnet_live_..." autocomplete="off">
+            <p class="hint-text">
+              Needs <code>admin</code> scope. Create one with <code>sql/create-admin-api-key.sql</code>.
+              Supabase URL/service role stay on the server — not entered here.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Create API key</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="keyName" class="required">Name</label>
+            <input type="text" id="keyName" placeholder="Partner Acme">
+          </div>
+          <div class="form-group">
+            <div class="label-row">
+              <label for="expiresAt">Expires at</label>
+              <label class="toggle-chip" for="neverExpires">
+                <input type="checkbox" id="neverExpires" checked>
+                Never expires
+              </label>
+            </div>
+            <input type="datetime-local" id="expiresAt" class="expiry-field">
+            <p class="hint-text" id="expiresHint">This key will not expire.</p>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="required">Scopes</label>
+          <div class="scopes">
+            <label><input type="checkbox" value="read" checked> read</label>
+            <label><input type="checkbox" value="write"> write</label>
+            <label><input type="checkbox" value="trigger"> trigger</label>
+            <label><input type="checkbox" value="admin"> admin</label>
+          </div>
+          <p class="hint-text">read = fetch data · write = manage devices · trigger = run scrapes · admin = manage keys</p>
+        </div>
+
+        <button class="button" id="createBtn">Create key</button>
+        <button class="button info" id="clearBtn">Clear</button>
+        <div class="result" id="formResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-header-row">
+          <div style="font-weight:700;">API keys <span class="muted" id="keyCount">(0)</span></div>
+          <button class="button info" id="refreshBtn">Refresh</button>
+        </div>
+        <div class="loading" id="loading">Loading keys...</div>
+        <div class="key-list empty-state" id="keyList">No keys loaded yet.</div>
+        <div class="muted" id="listStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function getApiUrl() {
+      return document.getElementById('apiUrl').value.replace(/\/$/, '');
+    }
+
+    function getAdminKey() {
+      return document.getElementById('adminApiKey').value.trim();
+    }
+
+    function getAuthHeaders() {
+      const apiKey = getAdminKey();
+      if (!apiKey) throw new Error('Admin API key is required.');
+      return {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + apiKey,
+      };
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = String(s ?? '');
+      return div.innerHTML;
+    }
+
+    function showResult(message, type = 'success') {
+      const el = document.getElementById('formResult');
+      el.className = 'result ' + type;
+      el.textContent = message || '';
+      el.style.display = message ? 'block' : 'none';
+    }
+
+    function selectedScopes() {
+      return Array.from(document.querySelectorAll('.scopes input:checked')).map((el) => el.value);
+    }
+
+    function formatDate(value) {
+      if (!value) return 'Never';
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return String(value);
+      return d.toLocaleString();
+    }
+
+    function syncNeverExpires() {
+      const neverExpires = document.getElementById('neverExpires').checked;
+      const expiresAt = document.getElementById('expiresAt');
+      const hint = document.getElementById('expiresHint');
+      expiresAt.disabled = neverExpires;
+      expiresAt.classList.toggle('is-disabled', neverExpires);
+      if (neverExpires) {
+        expiresAt.value = '';
+        hint.textContent = 'This key will not expire.';
+      } else {
+        hint.textContent = 'Pick an expiry date and time for this key.';
+      }
+    }
+
+    async function createKey() {
+      const name = document.getElementById('keyName').value.trim();
+      const scopes = selectedScopes();
+      const neverExpires = document.getElementById('neverExpires').checked;
+      const expiresLocal = document.getElementById('expiresAt').value;
+
+      if (!name) {
+        showResult('Name is required.', 'error');
+        return;
+      }
+      if (!scopes.length) {
+        showResult('Select at least one scope.', 'error');
+        return;
+      }
+
+      const body = { name, scopes };
+      if (!neverExpires && expiresLocal) {
+        body.expires_at = new Date(expiresLocal).toISOString();
+      }
+
+      try {
+        const res = await fetch(getApiUrl() + '/api/manage-api-keys', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(body),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showResult(payload.error || payload.details || ('HTTP ' + res.status), 'error');
+          return;
+        }
+
+        const key = payload.key || {};
+        showResult(
+          'Created key for "' + (key.name || name) + '"\n\n' +
+          'Copy this now:\n' + (key.api_key || '') + '\n\n' +
+          'Scopes: ' + ((key.scopes || scopes).join(', ')),
+          'success'
+        );
+        document.getElementById('keyName').value = '';
+        document.getElementById('expiresAt').value = '';
+        document.getElementById('neverExpires').checked = true;
+        syncNeverExpires();
+        await loadKeys();
+      } catch (error) {
+        showResult(error.message, 'error');
+      }
+    }
+
+    async function revokeKey(id, name) {
+      if (!id) return;
+      if (!window.confirm('Revoke key "' + name + '"?\n\nThis immediately disables the key. You can still see it in the list as revoked.')) return;
+
+      try {
+        const res = await fetch(
+          getApiUrl() + '/api/manage-api-keys?id=' + encodeURIComponent(id),
+          { method: 'DELETE', headers: getAuthHeaders() }
+        );
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          document.getElementById('listStatus').textContent =
+            payload.error || payload.details || ('HTTP ' + res.status);
+          return;
+        }
+        document.getElementById('listStatus').textContent = payload.message || 'Key revoked.';
+        await loadKeys();
+      } catch (error) {
+        document.getElementById('listStatus').textContent = error.message;
+      }
+    }
+
+    async function copyKey(apiKey) {
+      try {
+        await navigator.clipboard.writeText(apiKey);
+        document.getElementById('listStatus').textContent = 'API key copied.';
+      } catch (error) {
+        document.getElementById('listStatus').textContent = 'Could not copy key: ' + error.message;
+      }
+    }
+
+    function renderKeys(keys) {
+      const list = document.getElementById('keyList');
+      document.getElementById('keyCount').textContent = '(' + keys.length + ')';
+
+      if (!keys.length) {
+        list.className = 'key-list empty-state';
+        list.textContent = 'No API keys found.';
+        return;
+      }
+
+      list.className = 'key-list';
+      const header =
+        '<div class="key-row header">' +
+        '<div>Name</div><div>API key</div><div>Scopes / usage</div><div>Status</div><div>Actions</div>' +
+        '</div>';
+
+      const rows = keys.map((key) => {
+        const active = !!key.is_active;
+        return (
+          '<div class="key-row">' +
+            '<div><strong>' + escapeHtml(key.name) + '</strong><div class="muted">' + escapeHtml(key.id) + '</div></div>' +
+            '<div class="mono">' + escapeHtml(key.api_key) + '</div>' +
+            '<div>' +
+              '<div>' + escapeHtml((key.scopes || []).join(', ')) + '</div>' +
+              '<div class="muted">Created: ' + escapeHtml(formatDate(key.created_at)) + '</div>' +
+              '<div class="muted">Last used: ' + escapeHtml(formatDate(key.last_used_at)) + '</div>' +
+              '<div class="muted">Expires: ' + escapeHtml(formatDate(key.expires_at)) + '</div>' +
+            '</div>' +
+            '<div><span class="badge ' + (active ? 'active' : 'revoked') + '">' + (active ? 'active' : 'revoked') + '</span></div>' +
+            '<div>' +
+              '<button class="button info" data-copy="' + encodeURIComponent(key.api_key) + '">Copy</button>' +
+              (active
+                ? '<button class="button danger" data-revoke="' + escapeHtml(key.id) + '" data-name="' + escapeHtml(key.name) + '">Revoke</button>'
+                : '') +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+
+      list.innerHTML = header + rows;
+
+      list.querySelectorAll('[data-copy]').forEach((btn) => {
+        btn.addEventListener('click', () => copyKey(decodeURIComponent(btn.getAttribute('data-copy'))));
+      });
+      list.querySelectorAll('[data-revoke]').forEach((btn) => {
+        btn.addEventListener('click', () =>
+          revokeKey(btn.getAttribute('data-revoke'), btn.getAttribute('data-name'))
+        );
+      });
+    }
+
+    async function loadKeys() {
+      const loading = document.getElementById('loading');
+      loading.style.display = 'block';
+      document.getElementById('listStatus').textContent = '';
+
+      try {
+        const res = await fetch(getApiUrl() + '/api/manage-api-keys', {
+          method: 'GET',
+          headers: getAuthHeaders(),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          document.getElementById('keyList').className = 'key-list empty-state';
+          document.getElementById('keyList').textContent = 'Could not load keys.';
+          document.getElementById('listStatus').textContent =
+            payload.error || payload.details || ('HTTP ' + res.status);
+          return;
+        }
+        renderKeys(payload.keys || []);
+      } catch (error) {
+        document.getElementById('keyList').className = 'key-list empty-state';
+        document.getElementById('keyList').textContent = 'Could not load keys.';
+        document.getElementById('listStatus').textContent = error.message;
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    document.getElementById('createBtn').addEventListener('click', createKey);
+    document.getElementById('refreshBtn').addEventListener('click', loadKeys);
+    document.getElementById('neverExpires').addEventListener('change', syncNeverExpires);
+    document.getElementById('expiresAt').addEventListener('input', () => {
+      if (document.getElementById('expiresAt').value) {
+        document.getElementById('neverExpires').checked = false;
+        syncNeverExpires();
+      }
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      document.getElementById('keyName').value = '';
+      document.getElementById('expiresAt').value = '';
+      document.getElementById('neverExpires').checked = true;
+      syncNeverExpires();
+      showResult('', 'info');
+    });
+
+    syncNeverExpires();
+  </script>
+</body>
+</html>

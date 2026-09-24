@@ -15,7 +15,7 @@ create table if not exists public.api_keys (
   created_at timestamptz not null default now(),
   revoked_at timestamptz null,
   constraint api_keys_scopes_valid check (
-    scopes <@ array['read', 'write', 'trigger']::text[]
+    scopes <@ array['read', 'write', 'trigger', 'admin']::text[]
     and cardinality(scopes) > 0
   )
 );

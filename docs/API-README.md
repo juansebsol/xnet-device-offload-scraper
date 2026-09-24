@@ -1,6 +1,12 @@
 # 🔌 Device Offload Scraper API Documentation
 
-**Base URL:** `https://xnet-device-offload-scraper.vercel.app`
+**Base URL:** `https://rewards.xnetfoundation.org`
+
+## Shareable guides
+
+- **Partners / API users:** [`API-USER-GUIDE.md`](./API-USER-GUIDE.md)
+- **XNET admins (key management):** [`API-ADMIN-GUIDE.md`](./API-ADMIN-GUIDE.md)
+- **Key setup scripts:** [`API-KEYS.md`](./API-KEYS.md)
 
 ---
 
@@ -31,6 +37,7 @@ Authorization: Bearer xnet_live_...
 | `read` | `GET /api/device-offload` |
 | `write` | `GET/POST/DELETE /api/manage-devices` |
 | `trigger` | `POST /api/trigger-scrape`, `POST /api/trigger-scrape-date` |
+| `admin` | `GET/POST/DELETE /api/manage-api-keys` |
 
 Create, list, and revoke keys in Supabase using [`docs/API-KEYS.md`](./API-KEYS.md) and the scripts in `sql/`.
 
@@ -70,17 +77,17 @@ Valid key without required scope → `403`
 
 #### **Get All Data for a Device**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=bcb92300ae0c
+https://rewards.xnetfoundation.org/api/device-offload?nas_id=bcb92300ae0c
 ```
 
 #### **Get Last 7 Days**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=bcb92300ae0c&days=7
+https://rewards.xnetfoundation.org/api/device-offload?nas_id=bcb92300ae0c&days=7
 ```
 
 #### **Get Specific Date Range**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=bcb92300ae0c&start=2024-01-01&end=2024-01-15
+https://rewards.xnetfoundation.org/api/device-offload?nas_id=bcb92300ae0c&start=2024-01-01&end=2024-01-15
 ```
 
 ### **Response Format**
@@ -117,7 +124,7 @@ https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=bcb9230
 
 ### **Usage**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/manage-devices
+https://rewards.xnetfoundation.org/api/manage-devices
 ```
 
 ### **Response Format**
@@ -180,7 +187,7 @@ https://xnet-device-offload-scraper.vercel.app/api/manage-devices
 
 #### **Browser Console (JavaScript)**
 ```javascript
-fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices', {
+fetch('https://rewards.xnetfoundation.org/api/manage-devices', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -196,7 +203,7 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices', {
 
 #### **cURL (Terminal)**
 ```bash
-curl -X POST "https://xnet-device-offload-scraper.vercel.app/api/manage-devices" \
+curl -X POST "https://rewards.xnetfoundation.org/api/manage-devices" \
   -H "Authorization: Bearer xnet_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -239,13 +246,13 @@ curl -X POST "https://xnet-device-offload-scraper.vercel.app/api/manage-devices"
 
 #### **Browser URL (Direct)**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/manage-devices?nas_id=bcb92300ae0c
+https://rewards.xnetfoundation.org/api/manage-devices?nas_id=bcb92300ae0c
 ```
 *Note: DELETE requests in browser may not work properly - use other methods below*
 
 #### **Browser Console (JavaScript)**
 ```javascript
-fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices?nas_id=bcb92300ae0c', {
+fetch('https://rewards.xnetfoundation.org/api/manage-devices?nas_id=bcb92300ae0c', {
   method: 'DELETE'
 })
 .then(response => response.json())
@@ -254,7 +261,7 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices?nas_id=
 
 #### **cURL (Terminal)**
 ```bash
-curl -X DELETE "https://xnet-device-offload-scraper.vercel.app/api/manage-devices?nas_id=bcb92300ae0c" \
+curl -X DELETE "https://rewards.xnetfoundation.org/api/manage-devices?nas_id=bcb92300ae0c" \
   -H "Authorization: Bearer xnet_live_YOUR_KEY_HERE"
 ```
 
@@ -291,7 +298,7 @@ curl -X DELETE "https://xnet-device-offload-scraper.vercel.app/api/manage-device
 
 #### **Browser Console (JavaScript)**
 ```javascript
-fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape', {
+fetch('https://rewards.xnetfoundation.org/api/trigger-scrape', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -304,7 +311,7 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape', {
 
 #### **cURL (Terminal)**
 ```bash
-curl -X POST "https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape" \
+curl -X POST "https://rewards.xnetfoundation.org/api/trigger-scrape" \
   -H "Authorization: Bearer xnet_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{"nas_id": "bcb92300ae0c"}'
@@ -383,17 +390,17 @@ curl -X POST "https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape"
 
 #### **Check Daily Scrape List**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/manage-devices
+https://rewards.xnetfoundation.org/api/manage-devices
 ```
 
 #### **View Device Data**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=bcb92300ae0c
+https://rewards.xnetfoundation.org/api/device-offload?nas_id=bcb92300ae0c
 ```
 
 #### **Get Last 30 Days**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=bcb92300ae0c&days=30
+https://rewards.xnetfoundation.org/api/device-offload?nas_id=bcb92300ae0c&days=30
 ```
 
 ### **Complete Workflow Example**
@@ -401,7 +408,7 @@ https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=bcb9230
 #### **1. Add New Device to Daily List**
 ```javascript
 // Add device to daily scraping
-fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices', {
+fetch('https://rewards.xnetfoundation.org/api/manage-devices', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -417,12 +424,12 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/manage-devices', {
 
 #### **2. Verify Device Added**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/manage-devices
+https://rewards.xnetfoundation.org/api/manage-devices
 ```
 
 #### **3. Manually Trigger First Scrape**
 ```javascript
-fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape', {
+fetch('https://rewards.xnetfoundation.org/api/trigger-scrape', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ nas_id: 'newdevice456' })
@@ -433,7 +440,7 @@ fetch('https://xnet-device-offload-scraper.vercel.app/api/trigger-scrape', {
 
 #### **4. Check Data After Scrape**
 ```
-https://xnet-device-offload-scraper.vercel.app/api/device-offload?nas_id=newdevice456
+https://rewards.xnetfoundation.org/api/device-offload?nas_id=newdevice456
 ```
 
 ---
@@ -485,4 +492,4 @@ For API issues or questions:
 
 **Last Updated:** January 2024  
 **API Version:** V2  
-**Base URL:** `https://xnet-device-offload-scraper.vercel.app`
+**Base URL:** `https://rewards.xnetfoundation.org`

@@ -4,7 +4,7 @@
 
 const { supabase } = require('./_supabase');
 
-const VALID_SCOPES = new Set(['read', 'write', 'trigger']);
+const VALID_SCOPES = new Set(['read', 'write', 'trigger', 'admin']);
 
 function applyCors(res, methods = 'GET, POST, DELETE, OPTIONS') {
   res.setHeader('Access-Control-Allow-Origin', '*');
